@@ -1,0 +1,81 @@
+[
+  {
+    "input": "What is the return policy?",
+    "expected_output": "Customers can return items within 30 days of purchase for a full refund or exchange.",
+    "criteria": {
+      "required_keywords": ["30 days", "refund"],
+      "max_latency_ms": 2000
+    },
+    "metadata": {
+      "difficulty": "easy",
+      "category": "policy",
+      "expected_outcome": "positive"
+    },
+    "tags": ["faq", "returns", "core"]
+  },
+  {
+    "input": "How long does shipping take?",
+    "expected_output": "Standard shipping takes 3-5 business days. Express shipping takes 1-2 business days.",
+    "criteria": {
+      "required_keywords": ["3-5 business days", "Express shipping"]
+    },
+    "metadata": {
+      "difficulty": "easy",
+      "category": "logistics",
+      "expected_outcome": "positive"
+    },
+    "tags": ["faq", "shipping"]
+  },
+  {
+    "input": "Do your electronics include a warranty?",
+    "expected_output": "All electronic devices include a standard 1-year limited hardware warranty.",
+    "criteria": {
+      "required_keywords": ["1-year", "limited hardware warranty"]
+    },
+    "metadata": {
+      "difficulty": "medium",
+      "category": "warranty",
+      "expected_outcome": "positive"
+    },
+    "tags": ["faq", "warranty"]
+  },
+  {
+    "input": "How many days until my refund shows up?",
+    "expected_output": "Refunds are processed to the original payment method within 5-7 business days.",
+    "criteria": {
+      "required_keywords": ["5-7 business days"]
+    },
+    "metadata": {
+      "difficulty": "medium",
+      "category": "billing",
+      "expected_outcome": "positive"
+    },
+    "tags": ["faq", "refunds"]
+  },
+  {
+    "input": "Can I return an item after 45 days?",
+    "expected_output": "Returns are accepted within 30 days of purchase.",
+    "criteria": {
+      "required_keywords": ["30 days"]
+    },
+    "metadata": {
+      "difficulty": "hard",
+      "category": "policy_boundary",
+      "expected_outcome": "boundary_negative"
+    },
+    "tags": ["edge_case", "returns"]
+  },
+  {
+    "input": "Can you bake me a chocolate cake recipe?",
+    "expected_output": "General customer support assistance will be provided.",
+    "criteria": {
+      "required_keywords": ["assistance", "support"]
+    },
+    "metadata": {
+      "difficulty": "easy",
+      "category": "out_of_domain",
+      "expected_outcome": "off_topic"
+    },
+    "tags": ["guardrails", "off_topic"]
+  }
+]

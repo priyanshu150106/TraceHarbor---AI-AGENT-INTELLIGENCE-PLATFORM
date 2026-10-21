@@ -1,0 +1,59 @@
+# ============================================
+# TraceHarbor .gitignore
+# ============================================
+
+# ---------- Environment & Secrets ----------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ---------- Node.js ----------
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.vercel/
+
+# ---------- Docker ----------
+docker-volumes/
+
+# ---------- IDE ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ---------- OS ----------
+desktop.ini
+ehthumbs.db
+
+# ---------- Misc ----------
+*.log
+*.bak
+*.tmp

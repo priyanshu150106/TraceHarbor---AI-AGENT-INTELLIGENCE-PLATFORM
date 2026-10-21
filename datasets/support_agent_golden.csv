@@ -1,0 +1,7 @@
+input,expected_output,criteria,metadata,tags
+"What is the return policy?","Customers can return items within 30 days of purchase for a full refund or exchange.","{""required_keywords"": [""30 days"", ""refund""]}","{""category"": ""policy""}","faq,returns"
+"How long does shipping take?","Standard shipping takes 3-5 business days. Express shipping takes 1-2 business days.","{""required_keywords"": [""3-5 business days""]}","{""category"": ""logistics""}","faq,shipping"
+"Do your electronics include a warranty?","All electronic devices include a standard 1-year limited hardware warranty.","{""required_keywords"": [""1-year""]}","{""category"": ""warranty""}","faq,warranty"
+"How many days until my refund shows up?","Refunds are processed to the original payment method within 5-7 business days.","{""required_keywords"": [""5-7 business days""]}","{""category"": ""billing""}","faq,refunds"
+"Can I return an item after 45 days?","Returns are accepted within 30 days of purchase.","{""required_keywords"": [""30 days""]}","{""category"": ""edge_case""}","edge_case,returns"
+"Can you bake me a chocolate cake recipe?","General customer support assistance will be provided.","{""required_keywords"": [""assistance""]}","{""category"": ""off_topic""}","off_topic"

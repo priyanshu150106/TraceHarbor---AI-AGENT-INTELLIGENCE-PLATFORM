@@ -1,0 +1,50 @@
+# ============================================
+# TraceHarbor — Docker Compose (Development)
+# ============================================
+# Usage:  docker compose -f infra/docker-compose.yml up -d
+# Requires: Docker Engine 24+ with Compose V2
+# ============================================
+
+services:
+  # ---------- PostgreSQL + pgvector ----------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: traceharbor-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-th}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-traceharbor}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-th} -d ${POSTGRES_DB:-traceharbor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------- Redis ----------
+  redis:
+    image: redis:7-alpine
+    container_name: traceharbor-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: redis-server --appendonly yes
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local

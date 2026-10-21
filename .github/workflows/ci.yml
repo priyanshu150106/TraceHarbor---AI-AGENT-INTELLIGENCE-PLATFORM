@@ -1,0 +1,68 @@
+name: TraceHarbor CI
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  backend-quality:
+    name: Backend Linting & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Backend Dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,dev]"
+
+      - name: Run Ruff Linter
+        working-directory: apps/api
+        run: |
+          ruff check app
+
+      - name: Run Pytest Tests
+        working-directory: apps/api
+        run: |
+          pytest -v
+
+  frontend-quality:
+    name: Frontend Linting & Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package.json
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/web
+        run: |
+          npm ci || npm install
+
+      - name: Run TypeScript Typecheck
+        working-directory: apps/web
+        run: |
+          npm run typecheck
+
+      - name: Run Next.js Linter
+        working-directory: apps/web
+        run: |
+          npm run lint

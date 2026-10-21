@@ -1,0 +1,45 @@
+[project]
+name = "traceharbor-api"
+version = "0.1.0"
+description = "TraceHarbor — AI Agent Observability, Evaluation, and Security Platform (Backend API)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.30.0",
+    "alembic>=1.13.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "python-dotenv>=1.0.0",
+    "bcrypt>=4.2.0",
+    "structlog>=24.4.0",
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "coverage>=7.6.0",
+]
+dev = [
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
