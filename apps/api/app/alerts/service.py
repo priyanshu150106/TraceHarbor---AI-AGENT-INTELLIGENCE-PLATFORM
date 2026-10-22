@@ -17,6 +17,7 @@ from app.analytics.service import calculate_percentile
 from app.models.alert import AlertHistory, AlertRule
 from app.models.experiment import Experiment
 from app.models.run import Run
+from app.models.safety import SafetyCampaign
 from app.schemas.alerts import AlertEvaluationResult
 
 
@@ -112,6 +113,31 @@ class AlertEvaluationService:
             )
             failed_cases = (await db.execute(stmt)).scalar_one_or_none()
             return float(failed_cases or 0)
+
+        elif metric == "safety_pass_rate":
+            stmt = select(
+                func.sum(SafetyCampaign.passed_tests).label("passed"),
+                func.sum(SafetyCampaign.total_tests).label("total"),
+            ).where(
+                SafetyCampaign.project_id == project_id,
+                SafetyCampaign.status == "completed",
+                SafetyCampaign.created_at >= window_start,
+                SafetyCampaign.created_at <= now,
+            )
+            res = (await db.execute(stmt)).one()
+            if res.total and res.total > 0:
+                return round(float(res.passed or 0) / float(res.total), 4)
+            return 1.0  # Default to 100% when no safety campaigns were run
+
+        elif metric == "safety_critical_failures":
+            stmt = select(func.sum(SafetyCampaign.critical_failures)).where(
+                SafetyCampaign.project_id == project_id,
+                SafetyCampaign.status == "completed",
+                SafetyCampaign.created_at >= window_start,
+                SafetyCampaign.created_at <= now,
+            )
+            crit_failures = (await db.execute(stmt)).scalar_one_or_none()
+            return float(crit_failures or 0)
 
         return 0.0
 

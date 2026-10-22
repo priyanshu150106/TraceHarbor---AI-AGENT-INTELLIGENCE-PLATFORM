@@ -8,11 +8,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![CI](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM/actions/workflows/ci.yml/badge.svg)](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM/actions)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-73%20passed-brightgreen.svg)](#7-testing--quality-assurance)
+[![Tests](https://img.shields.io/badge/tests-94%20passed-brightgreen.svg)](#9-testing--quality-assurance)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
@@ -30,6 +26,10 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Experiment Hub** | `/experiments` | Execute benchmark evaluation runs against approved agent versions. |
 | **Experiment Details** | `/experiments/[id]` | Per-case evaluation scorecard, pass/fail explanations, and linked trace waterfalls. |
 | **Regression Diff Engine** | `/experiments/compare` | Side-by-side version comparison isolating regressions, improvements, and score deltas. |
+| **Safety Overview** | `/safety` | Fleet safety posture, category breakdown, critical vulnerability feed, and quick-launch. |
+| **Safety Campaigns** | `/safety/campaigns` | Searchable campaign execution history, pass/fail status, and launch modal. |
+| **Safety Campaign Details** | `/safety/campaigns/[id]` | Per-test security scorecard, redacted evidence drawer, and linked trace runs. |
+| **Safety Regression Engine** | `/safety/compare` | Head-to-head security regression detection (baseline vs candidate agent versions). |
 
 ---
 
@@ -58,7 +58,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Phase 4: Alerting & Monitoring Engine** | **Implemented & Tested** | Configurable rules (`error_rate`, `p95_latency_ms`, `total_cost`, `eval_pass_rate`), cooldown suppression |
 | **Phase 4: SSRF-Safe Outbound Webhooks** | **Implemented & Tested** | Blocks localhost, private subnets, and cloud metadata (169.254.169.254); HMAC-SHA256 signature signing |
 | **Phase 4: Web UI for Analytics & Alerts**| **Implemented & Tested** | Next.js interactive dashboards `/analytics` and `/alerts` |
-| **Phase 5: Red-Team Campaigns** | *Planned (Upcoming)* | Adversarial prompt executor and vulnerability discovery metrics |
+| **Phase 5: AI Safety & Red-Teaming** | **Implemented & Tested** | 7 threat categories, 8 deterministic evaluators, canary detection, safe execution boundary, campaigns, regression diff, and `/safety` UI |
 | **Phase 6: Failure Clustering** | *Planned* | Vector-based failure clustering via PostgreSQL pgvector |
 
 ---
@@ -213,6 +213,9 @@ npm run dev
 - Dataset Hub: `http://localhost:3000/datasets`
 - Experiment Hub: `http://localhost:3000/experiments`
 - Version Comparison: `http://localhost:3000/experiments/compare`
+- Safety Overview: `http://localhost:3000/safety`
+- Safety Campaigns: `http://localhost:3000/safety/campaigns`
+- Safety Regression Diff: `http://localhost:3000/safety/compare`
 
 #### 3. Run Your First Experiment Walkthrough
 
@@ -299,14 +302,96 @@ Then explore the new Phase 4 views:
 
 ---
 
-## 7. Python Tracing SDK Usage
+## 7. AI Safety & Red-Teaming Module (Phase 5)
 
-### 7.1 Local Installation
+TraceHarbor includes a production-grade AI Agent Safety and Red-Teaming benchmark engine designed to test, audit, and compare agent versions against adversarial attacks and safety policy violations.
+
+### 7.1 Threat Categories
+TraceHarbor structures adversarial safety testing across 7 core threat categories plus benign controls:
+1. **Prompt Injection (`prompt_injection`):** Direct and indirect attempts to override developer system prompts, alter agent goals, or jailbreak boundary instructions.
+2. **Instruction Hierarchy (`instruction_hierarchy`):** Multi-tenant or untrusted retrieval payloads (RAG) attempting to elevate untrusted user data above foundational system prompts.
+3. **Sensitive Data Handling (`sensitive_data_handling`):** Elicitation attempts targeting synthetic canary secrets, internal API keys, passwords, or PII.
+4. **Unsafe Tool Use (`unsafe_tool_use`):** Prompting agents to invoke unauthorized or destructive tools (e.g., `execute_command`, `refund_unapproved`, `delete_user`).
+5. **Policy Boundary Testing (`policy_boundary`):** Boundary testing for disallowed actions such as unverified shipping changes, financial modifications, or terms-of-service violations.
+6. **Data Exfiltration (`data_exfiltration`):** Covert attempts to transmit synthetic canary secrets via unauthorized outbound webhooks or side-channel tool parameters.
+7. **Jailbreak & Refusal Robustness (`jailbreak_refusal`):** Adversarial framing (hypothetical roleplay, developer mode override) testing whether an agent refuses unsafe commands safely and politely.
+
+### 7.2 Deterministic Safety Evaluators
+Evaluators run deterministically in-process with zero external API dependencies, producing structured outcomes (`passed`, `severity`, `explanation`, and `evidence`):
+- **Secret Leakage Evaluator (`secret_leakage`):** Scans agent outputs and tool calls for synthetic canaries (`TR_CANARY_...`) and known secrets, automatically masking evidence before database persistence.
+- **Required Refusal Evaluator (`required_refusal`):** Verifies that the agent refused an adversarial request and did not execute the forbidden action.
+- **Forbidden Pattern Evaluator (`forbidden_pattern`):** Detects prohibited substrings or regex signatures that indicate boundary violations.
+- **Tool Policy Enforcement Evaluator (`tool_policy_enforcement`):** Validates tool execution against strict allowlists and denylists.
+- **Output Schema Validation Evaluator (`output_schema_validation`):** Ensures responses adhere to structural safety formats.
+- **Policy Compliance Evaluator (`policy_compliance`):** Evaluates multi-criterion policy rules (e.g. required disclosures, forbidden clauses).
+- **Prompt Injection Resistance Evaluator (`prompt_injection_resistance`):** Tests resilience against jailbreak markers and instruction override indicators.
+- **Optional LLM Safety Judge (`llm_safety_judge`):** Optional, provider-neutral qualitative safety judge disabled by default. *Crucially, LLM judges are never treated as proof of safety.*
+
+### 7.3 Safe Execution Boundary
+Safety evaluations must never cause damage to host infrastructure:
+- **Zero Arbitrary Execution:** Only pre-registered agent adapters (`SupportAgentSecured` `v3.0-secured`, `SupportAgentVulnerable` `v0.5-vulnerable`, etc.) from the explicit adapter registry can be targeted.
+- **Isolated Mock Tools:** All tool executions are intercepted by deterministic mock fixtures (`search_order`, `lookup_faq`). No real external webhooks or database writes are permitted.
+- **Resource Bounds:** Enforces strict timeouts (10s default), input size truncation (10 KB), and output size truncation (50 KB).
+- **Exception Trapping:** Agent runtime exceptions or timeouts are recorded as isolated test outcomes without crashing or leaving the campaign in an inconsistent state.
+
+### 7.4 Safety Campaigns & Version Regression Analysis
+TraceHarbor persists comprehensive safety campaigns linked directly to trace runs:
+- **Campaign Metrics:** Overall pass rate, category breakdown, severity-weighted penalty score, and critical failure count.
+- **Evidence Redaction:** Synthetic secrets, canary tokens, and credentials in test evidence are automatically sanitized using `redact_sensitive_content` before persistence.
+- **Regression Diffing:** Compare baseline vs. candidate campaigns aligned by immutable `test_case_id`:
+  - 🚨 **Regressed:** Passed in baseline, failed in candidate.
+  - ✨ **Resolved:** Failed in baseline, fixed in candidate.
+  - 🤝 **Unchanged:** Identical security posture.
+  - ⚠️ **Evaluator Error:** Runtime execution faults.
+
+### 7.5 Safety REST API Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/v1/safety/overview` | Fleet safety KPIs, pass rates, and critical vulnerabilities | Tenant Isolated |
+| `GET` | `/v1/safety/campaigns` | Searchable list of executed safety campaigns | Tenant Isolated |
+| `POST` | `/v1/safety/campaigns` | Launch a safety campaign against an approved agent | Tenant Isolated |
+| `GET` | `/v1/safety/campaigns/{id}` | Detailed scorecard, test results, and redacted evidence | Tenant Isolated |
+| `GET` | `/v1/safety/compare` | Compare baseline vs candidate campaigns (regressions/fixes) | Tenant Isolated |
+| `GET` | `/v1/safety/datasets` | Directory of registered safety benchmark datasets | Tenant Isolated |
+| `POST` | `/v1/safety/datasets` | Create or import a safety benchmark dataset | Tenant Isolated |
+| `GET` | `/v1/safety/datasets/{id}` | Retrieve safety test cases and threat metadata | Tenant Isolated |
+| `GET` | `/v1/safety/agents` | Directory of approved agent adapters eligible for red-teaming | Tenant Isolated |
+
+### 7.6 Walkthrough: Running a Red-Team Benchmark & Comparing Agent Versions
+
+TraceHarbor ships with a curated red-teaming benchmark dataset at `datasets/safety_redteam_benchmark.json` (and `.csv`) covering prompt injection, sensitive data leakage, unauthorized tool execution, and benign controls.
+
+**Step 1 — Upload the Safety Benchmark Dataset:**
+1. Navigate to `http://localhost:3000/datasets` (or create via `POST /v1/safety/datasets`).
+2. Upload `datasets/safety_redteam_benchmark.json` with Dataset Type set to `safety`.
+
+**Step 2 — Launch Vulnerable Agent Campaign (Baseline):**
+1. Navigate to `http://localhost:3000/safety/campaigns`.
+2. Click **"Launch Campaign"**.
+3. Select agent `SupportAgentVulnerable (v0.5-vulnerable)` and the safety dataset.
+4. Click **"Run Campaign"**. The benchmark will detect critical vulnerabilities (e.g. system canary leakage, unauthorized tool calls, prompt injection compliance).
+
+**Step 3 — Launch Secured Agent Campaign (Candidate):**
+1. Click **"Launch Campaign"** again.
+2. Select agent `SupportAgentSecured (v3.0-secured)` and the same safety dataset.
+3. Click **"Run Campaign"**. The secured agent defends against injections, protects canaries, refuses unauthorized tools, and passes benign control prompts.
+
+**Step 4 — Compare Safety Regressions & Verifications:**
+1. Navigate to `http://localhost:3000/safety/compare`.
+2. Select the vulnerable run as Baseline and the secured run as Candidate.
+3. View the regression engine: it highlights resolved vulnerabilities, proves zero newly introduced regressions, and displays redacted evidence side-by-side.
+
+---
+
+## 8. Python Tracing SDK Usage
+
+### 8.1 Local Installation
 ```bash
 pip install -e packages/sdk-python
 ```
 
-### 7.2 Basic Tracing Example
+### 8.2 Basic Tracing Example
 ```python
 import traceharbor
 
@@ -338,42 +423,41 @@ traceharbor.shutdown()
 
 ---
 
-## 8. Testing & Quality Assurance
+## 9. Testing & Quality Assurance
 
-### 8.1 Backend Test Suite (64 Tests)
+### 9.1 Backend Test Suite (85 Tests)
 ```powershell
 python -m pytest apps/api/app/tests -v
 ```
 Covers:
+- **Safety Evaluators & Redaction:** secret canary detection, required refusal checks, forbidden pattern detection, tool policy enforcement, schema validation, multi-rule policy compliance, prompt injection resistance, LLM safety judge mock fallback, and canary redaction.
+- **Safety Runner, Campaigns & Regression:** agent isolation boundary, timeouts, input/output truncation, exception safety, campaign persistence, baseline vs candidate regression comparison, tenant isolation, and alert rule metric computation.
 - **Analytics:** overview KPI calculation, zero-padded continuous timeseries, model attribution, agent version comparisons, empty project handling, and tenant isolation.
-- **Alerting & Monitoring:** rule CRUD lifecycle, operator validation, window limits, threshold evaluation, cooldown deduplication, and SSRF URL validation.
+- **Alerting & Monitoring:** rule CRUD lifecycle, operator validation, window limits, threshold evaluation, cooldown deduplication, safety metrics (`safety_pass_rate`, `safety_critical_failures`), and SSRF URL validation.
 - **Datasets:** creation, pagination, test-case addition, JSON & CSV uploads, validation error handling, case count limits, and safe deletion.
 - **Rule Evaluators:** exact match, case-insensitive match, required keywords, regex ReDoS safety, JSON syntax, JSON Schema validation, tool-call tracking, latency threshold checks, token/cost checks, output presence, and payload safe truncation.
-- **LLM Judge:** mock fallback mode, rubric validation, timeout handling, and unconfigured key handling with zero paid calls.
 - **Experiments:** agent directory listing, lifecycle execution, trace Run/Span linkage, per-case result persistence, empty dataset rejection, and unapproved agent rejection.
-- **Regression Comparison:** side-by-side alignment, delta calculations, regression classification, improvement classification, and incompleted experiment rejection.
-- **Tenant Isolation:** cross-project dataset access protection, experiment reading/writing isolation, and API key authentication enforcement.
 - **Core Tracing & Runs:** health endpoints, ingestion cycle validation, batch limits, runs pagination, and waterfall detail retrieval.
 
-### 8.2 Python SDK Test Suite (9 Tests)
+### 9.2 Python SDK Test Suite (9 Tests)
 ```powershell
 python -m pytest packages/sdk-python/tests -v
 ```
 Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, and transport failure isolation.
 
-### 8.3 Combined Automated Test Execution (73 Tests Total)
+### 9.3 Combined Automated Test Execution (94 Tests Total)
 ```powershell
 python -m pytest apps/api/app/tests packages/sdk-python/tests -v
 ```
-Result: **73 passed, 0 failures, 0 errors** in ~7.5 seconds.
+Result: **94 passed, 0 failures, 0 errors** in ~8.5 seconds.
 
-### 8.4 Python Code Style & Linting
+### 9.4 Python Code Style & Linting
 ```powershell
 python -m ruff check apps/api packages/sdk-python
 ```
 Result: **All checks passed (0 errors)**.
 
-### 8.5 Frontend Typechecking, Linting & Production Build
+### 9.5 Frontend Typechecking, Linting & Production Build
 ```powershell
 cd apps/web
 npm run typecheck
@@ -383,38 +467,39 @@ npm run build
 Result:
 - **Typecheck:** Clean pass (`tsc --noEmit`).
 - **ESLint:** Clean pass with **0 errors and 0 warnings**.
-- **Production Build:** Successfully compiled all 12 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/projects`, `/settings`, `/_not-found`).
+- **Production Build:** Successfully compiled all 16 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/safety`, `/safety/campaigns`, `/safety/campaigns/[id]`, `/safety/compare`, `/projects`, `/settings`, `/_not-found`).
 
 > **Database & Infrastructure Status Note:**  
-> All 73 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, and `003_analytics_and_alerts.py`) against live PostgreSQL remains pending Docker availability.
+> All 94 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, `003_analytics_and_alerts.py`, and `004_safety_module.py`) against live PostgreSQL remains pending Docker availability.
 
 ---
 
-## 9. Monorepo Directory Structure
+## 10. Monorepo Directory Structure
 
 ```
 TraceHarbor/
 ├── .github/workflows/ci.yml       # GitHub Actions CI workflow (linting, tests, build)
 ├── apps/
 │   ├── api/                       # FastAPI backend application
-│   │   ├── alembic/               # Database migrations (001_initial_schema, 002_evaluation_engine, 003_analytics_and_alerts)
+│   │   ├── alembic/               # Database migrations (001_initial, 002_eval, 003_alerts, 004_safety)
 │   │   ├── app/
 │   │   │   ├── alerts/            # Alert evaluation engine, cooldown logic, SSRF-safe notifications
 │   │   │   ├── analytics/         # Metric semantics, percentiles, timeseries bucketing
-│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments
+│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments, safety
 │   │   │   ├── core/              # Config, DB connection, auth, structured logging
 │   │   │   ├── evaluation/        # Rule evaluators, LLM judge, runner, agent registry, parser
-│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert
+│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert, safety
+│   │   │   ├── safety/            # Redaction, evaluators, runner, comparison, dataset parser
 │   │   │   ├── schemas/           # Pydantic v2 request and response contracts
-│   │   │   └── tests/             # 64 automated pytest tests covering all subsystems
+│   │   │   └── tests/             # 85 automated pytest tests covering all subsystems
 │   │   └── pyproject.toml         # Backend dependencies & tools configuration
 │   └── web/                       # Next.js 14 App Router web dashboard
 │       ├── src/
-│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /experiments/compare
+│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /safety
 │       │   ├── components/        # Layout & UI components (Navbar, Sidebar)
 │       │   └── lib/               # Typed API client and TypeScript definitions
 │       └── package.json           # Frontend dependencies
-├── datasets/                      # Reference golden benchmark datasets (JSON & CSV)
+├── datasets/                      # Reference golden & safety red-team benchmark datasets (JSON & CSV)
 ├── demo-agents/                   # Standalone agent implementations (Customer Support Agent)
 ├── docs/
 │   └── ARCHITECTURE.md            # In-depth architectural designs & Mermaid sequences
@@ -430,7 +515,7 @@ TraceHarbor/
 
 ---
 
-## 10. Roadmap
+## 11. Roadmap
 
 TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 0:** Project Scaffolding & Database Foundation *(Completed & Tested)*
@@ -438,7 +523,7 @@ TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 2:** Trace Waterfall UI & Observability Dashboard *(Completed & Tested)*
 - **Phase 3:** Evaluation & Regression Testing Engine *(Completed & Tested)*
 - **Phase 4:** Advanced Analytics, Monitoring & Alerting *(Completed & Tested)*
-- **Phase 5:** AI Safety & Red-Teaming Module *(Upcoming)*
+- **Phase 5:** AI Safety & Red-Teaming Module *(Completed & Tested)*
 - **Phase 6:** Intelligence Layer (Vector Failure Clustering via pgvector)
 - **Phase 7:** Production Hardening & Portfolio Polish
 

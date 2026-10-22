@@ -424,3 +424,210 @@ export interface AlertEvaluationBatch {
   results: AlertEvaluationResult[];
 }
 
+// ------------------- Phase 5: Safety & Red-Teaming -------------------
+
+export interface SafetyTestResult {
+  id: string;
+  campaign_id: string;
+  test_case_id: string;
+  run_id?: string | null;
+  stable_case_id: string;
+  category: string;
+  severity: "critical" | "high" | "medium" | "low" | string;
+  adversarial_input: any;
+  agent_output: any;
+  expected_safe_behavior?: string | null;
+  passed?: boolean | null;
+  status: "pass" | "fail" | "error" | "pending" | string;
+  error?: string | null;
+  duration_ms?: number | null;
+  evaluator_results: Array<{
+    evaluator_name: string;
+    evaluator_version?: string;
+    passed: boolean;
+    outcome: string;
+    score: number;
+    severity?: string;
+    explanation: string;
+    evidence?: any;
+    expected_value?: any;
+    actual_value?: any;
+  }>;
+  evidence?: any;
+  created_at: string;
+}
+
+export interface SafetyCampaignSummary {
+  id: string;
+  project_id: string;
+  dataset_id: string;
+  dataset_name?: string | null;
+  name: string;
+  description?: string | null;
+  status: "pending" | "running" | "completed" | "error" | string;
+  agent_name: string;
+  agent_version: string;
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  errored_tests: number;
+  critical_failures: number;
+  safety_pass_rate?: number | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at: string;
+}
+
+export interface SafetyCampaignDetail extends SafetyCampaignSummary {
+  config: Record<string, any>;
+  summary?: Record<string, any> | null;
+  category_scores: Record<
+    string,
+    {
+      total: number;
+      passed: number;
+      failed: number;
+      pass_rate: number;
+    }
+  >;
+  severity_summary: Record<
+    string,
+    {
+      total: number;
+      passed: number;
+      failed: number;
+    }
+  >;
+  results: SafetyTestResult[];
+}
+
+export interface SafetyCampaignListResponse {
+  items: SafetyCampaignSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface SafetyCampaignCreate {
+  name: string;
+  dataset_id: string;
+  agent_name: string;
+  agent_version: string;
+  description?: string;
+  config?: Record<string, any>;
+}
+
+export interface SafetyComparisonCategory {
+  category: string;
+  baseline_pass_rate: number;
+  candidate_pass_rate: number;
+  delta_pass_rate: number;
+  baseline_failed: number;
+  candidate_failed: number;
+}
+
+export interface SafetyComparisonCase {
+  stable_case_id: string;
+  category: string;
+  severity: string;
+  adversarial_input: any;
+  expected_safe_behavior?: string;
+  comparison_status:
+    | "newly_introduced_failure"
+    | "resolved_failure"
+    | "unchanged_failure"
+    | "unchanged_pass"
+    | "error"
+    | "missing";
+  missing_in?: string;
+  baseline?: {
+    id: string;
+    status: string;
+    passed: boolean | null;
+    category: string;
+    severity: string;
+    duration_ms?: number;
+    error?: string | null;
+    evidence?: any;
+    evaluator_results?: any[];
+  } | null;
+  candidate?: {
+    id: string;
+    status: string;
+    passed: boolean | null;
+    category: string;
+    severity: string;
+    duration_ms?: number;
+    error?: string | null;
+    evidence?: any;
+    evaluator_results?: any[];
+  } | null;
+}
+
+export interface SafetyComparison {
+  baseline_campaign: {
+    id: string;
+    name: string;
+    agent_name: string;
+    agent_version: string;
+    total_tests: number;
+    passed_tests: number;
+    failed_tests: number;
+    critical_failures: number;
+    safety_pass_rate: number;
+  };
+  candidate_campaign: {
+    id: string;
+    name: string;
+    agent_name: string;
+    agent_version: string;
+    total_tests: number;
+    passed_tests: number;
+    failed_tests: number;
+    critical_failures: number;
+    safety_pass_rate: number;
+  };
+  summary: {
+    delta_pass_rate: number;
+    delta_critical_failures: number;
+    newly_introduced_failures_count: number;
+    resolved_failures_count: number;
+    unchanged_failures_count: number;
+    unchanged_passes_count: number;
+    errors_count: number;
+    missing_cases_count: number;
+    total_aligned_cases: number;
+  };
+  category_comparison: SafetyComparisonCategory[];
+  newly_introduced_failures: SafetyComparisonCase[];
+  resolved_failures: SafetyComparisonCase[];
+  unchanged_failures: SafetyComparisonCase[];
+  unchanged_passes: SafetyComparisonCase[];
+  errors: SafetyComparisonCase[];
+  all_cases: SafetyComparisonCase[];
+}
+
+export interface SafetyOverview {
+  total_campaigns: number;
+  overall_safety_pass_rate: number | null;
+  total_critical_failures: number;
+  recent_campaigns: SafetyCampaignSummary[];
+  category_breakdown: Record<
+    string,
+    {
+      total: number;
+      passed: number;
+      failed: number;
+      pass_rate: number;
+    }
+  >;
+  severity_breakdown: Record<
+    string,
+    {
+      total: number;
+      failed: number;
+    }
+  >;
+}
+

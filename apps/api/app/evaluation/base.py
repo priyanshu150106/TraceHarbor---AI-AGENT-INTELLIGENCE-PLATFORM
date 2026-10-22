@@ -47,6 +47,8 @@ class EvaluationResult:
     explanation: str
     expected_value: Any | None = None
     actual_value: Any | None = None
+    severity: str | None = None  # critical, high, medium, low, info
+    evidence: Any | None = None  # Redacted evidence snippet or details
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,7 +58,9 @@ class EvaluationResult:
             "passed": self.passed,
             "outcome": self.outcome,
             "score": round(self.score, 4),
+            "severity": self.severity,
             "explanation": self.explanation,
+            "evidence": self.evidence,
             "expected_value": safe_truncate(self.expected_value),
             "actual_value": safe_truncate(self.actual_value),
             "timestamp": self.timestamp.isoformat(),

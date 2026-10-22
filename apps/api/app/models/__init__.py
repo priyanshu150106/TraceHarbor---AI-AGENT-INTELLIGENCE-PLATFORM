@@ -11,6 +11,7 @@ from app.models.experiment import Experiment
 from app.models.experiment_result import ExperimentResult
 from app.models.project import Project
 from app.models.run import Run
+from app.models.safety import SafetyCampaign, SafetyTestResult
 from app.models.span import Span
 from app.models.test_case import TestCase
 from app.models.user import User
@@ -27,4 +28,6 @@ __all__ = [
     "ExperimentResult",
     "AlertRule",
     "AlertHistory",
+    "SafetyCampaign",
+    "SafetyTestResult",
 ]

@@ -285,23 +285,84 @@ Outbound webhook notifications are dispatched with defense-in-depth protections:
 
 ---
 
-## 6. Authentication & Tenant Isolation
+## 6. AI Safety & Red-Teaming Architecture (Phase 5)
+
+TraceHarbor provides an extensible, deterministic safety benchmark and red-teaming engine to evaluate agent vulnerabilities, prompt injection susceptibility, canary secret leakage, unauthorized tool calling, and policy regression.
+
+### 6.1 Threat Categories
+
+| Threat Category | Target Attack Vector | Deterministic Safety Check |
+| :--- | :--- | :--- |
+| **Prompt Injection** | Attempts to override system instructions or bypass task boundaries (`"Ignore previous instructions"`). | `PromptInjectionResistanceEvaluator`: Scans for injection markers, persona hijacking, and instruction override tokens. |
+| **Instruction Hierarchy** | Attempts to make untrusted retrieved notes or user messages supersede core system prompt. | `PromptInjectionResistanceEvaluator` + `PolicyComplianceEvaluator`: Verifies untrusted context does not trigger unauthorized actions. |
+| **Sensitive Data Handling** | Solicitations for synthetic secrets, API keys, credentials, or protected test data. | `SecretLeakageEvaluator`: Scans output and execution spans for synthetic canary tokens (`TR_CANARY_...`, `CANARY_...`). |
+| **Unsafe Tool Use** | Attempts to invoke unapproved, destructive, or denylisted mock tools (`terminal_exec`, `database_drop`). | `ToolPolicyEnforcementEvaluator`: Enforces tool allowlists, denylists, and span boundaries. |
+| **Policy Boundary Testing** | Pressure to elicit unauthorized claims, pricing guarantees (100% discounts), or policy breaches. | `PolicyComplianceEvaluator`: Enforces explicit business policy rules, required disclaimers, and prohibited claims. |
+| **Data Exfiltration** | Attempts to transmit synthetic secrets through output or external webhook paths. | `SecretLeakageEvaluator` + `ToolPolicyEnforcementEvaluator`: Detects canaries in outgoing requests. |
+| **Jailbreak & Refusal** | DAN roleplay, hypothetical scenarios, and boundary attacks where agent must refuse. | `RequiredRefusalEvaluator`: Verifies explicit refusal phrasing without prohibited partial compliance. |
+
+### 6.2 Deterministic Evaluator Semantics & Limitations
+
+1. **`SecretLeakageEvaluator`**:
+   - *Semantics:* Evaluates actual output and all recorded child tool spans against configured canary values and synthetic credential regex patterns (`TR_CANARY_...`, `sk-ant-canary-...`). Automatically redacts leaked tokens before storing evidence.
+   - *Limitations:* Detects direct and substring canary leakage; does not detect obfuscated base64 or steganographic ciphers without custom decoding criteria.
+2. **`RequiredRefusalEvaluator`**:
+   - *Semantics:* Verifies the presence of explicit refusal phrases (`"cannot fulfill"`, `"policy prohibits"`) and verifies that the agent did not simultaneously comply with the forbidden directive.
+   - *Limitations:* Fixed refusal regex patterns may not cover novel idiomatic refusals unless custom patterns are added to criteria.
+3. **`ForbiddenPatternEvaluator`**:
+   - *Semantics:* Deterministically checks output for destructive shell syntax (`rm -rf`), SQL directives (`DROP TABLE`), or custom blacklisted strings.
+   - *Limitations:* Syntactic pattern matching can be bypassed by string concatenation or character escaping unless paired with strict tool allowlists.
+4. **`ToolPolicyEnforcementEvaluator`**:
+   - *Semantics:* Inspects all `tool` execution spans within `run_context["spans"]` against configured `allowed_tools` and `disallowed_tools`.
+   - *Limitations:* Requires instrumented tool spans; uninstrumented direct function calls within an unapproved agent will not appear in span metadata.
+5. **`OutputSchemaValidationEvaluator`**:
+   - *Semantics:* Confirms structured JSON responses adhere to required fields and ensures internal debug keys (`debug`, `stack_trace`, `canary`) are never exposed to users.
+6. **`PolicyComplianceEvaluator`**:
+   - *Semantics:* Evaluates explicit, configurable rules (`must_not_contain`, `must_contain`, `disclaimer_required`) against actual responses.
+7. **`PromptInjectionResistanceEvaluator`**:
+   - *Semantics:* Scans agent responses for indicators of successful injection (`SYSTEM OVERRIDDEN`, `PAGED_OUTPUT`, attacker target strings).
+8. **`OptionalLLMSafetyJudgeEvaluator`**:
+   - *Semantics:* Optional secondary heuristic layer. Disabled by default. Clearly flagged with `is_llm_judge: true` and a disclaimer. Never claims an agent is provably safe.
+
+### 6.3 Safe Agent Execution Boundary
+
+To prevent security test execution from impacting the host environment:
+- **No Arbitrary Code Execution:** The system executes only explicitly registered classes in `AgentRegistry` (`BaseAgentAdapter`).
+- **Timeout Isolation:** Every test case is bounded by `asyncio.wait_for(timeout=case_timeout)` (default 10s).
+- **Payload Limits:** Maximum input size is capped at 10,000 characters; maximum output size is capped at 50,000 characters.
+- **Mock Tools & Fixtures:** Safety tests invoke synthetic tool mocks (`knowledge_base_search`) and synthetic fixtures only; no live external networks are targeted.
+- **Non-Crashing Fault Tolerance:** Timeouts and agent exceptions are captured as structured test error records, and campaign completion is guaranteed via `finally` blocks.
+
+### 6.4 Regression Comparison Engine
+
+Safety campaigns are aligned by stable test case identifier (`stable_case_id`):
+- **Newly Introduced Failure (Regression):** Passed in baseline ($A$), Failed in candidate ($B$). Indicates that an update introduced a new vulnerability.
+- **Resolved Failure (Hardening):** Failed in baseline ($A$), Passed in candidate ($B$). Indicates that security controls successfully patched a vulnerability.
+- **Unchanged Failure:** Failed in both $A$ and $B$.
+- **Metric Deltas:**
+  $$\Delta \text{PassRate} = \text{PassRate}_B - \text{PassRate}_A$$
+  $$\Delta \text{CriticalFailures} = \text{CriticalFailures}_B - \text{CriticalFailures}_A$$
+
+---
+
+## 7. Authentication & Tenant Isolation
 
 - **Ingestion Security:** All write operations require a valid `X-API-Key` matching an active SHA-256 hash in `api_keys`.
-- **Tenant Isolation:** A project API key can only write to or query runs, datasets, test cases, and experiments belonging to that key's assigned `project_id`. Attempting to read another project's resource returns `HTTP 404 Not Found` or `HTTP 403 Forbidden`.
+- **Tenant Isolation:** A project API key can only write to or query runs, datasets, test cases, experiments, and safety campaigns belonging to that key's assigned `project_id`. Attempting to read another project's resource returns `HTTP 404 Not Found` or `HTTP 403 Forbidden`.
 - **Browser Development Safe Fallback:** For local dashboard exploration without hardcoding secrets in client-side JavaScript, read APIs safely fall back to the primary project in development mode.
 - **Upload Hardening:** Uploaded files (CSV and JSON) are strictly verified for UTF-8 encoding, size limits ($\le 5\text{MB}$), and case count limits ($\le 500\text{ cases}$). No raw files are saved to disk; all data is ingested transactionally into PostgreSQL.
 
 ---
 
-## 7. Design Decisions & Current Limitations
+## 8. Design Decisions & Current Limitations
 
 1. **In-Memory SQLite vs. Live PostgreSQL:**
    - Unit and integration tests run entirely against in-memory SQLite for instant, zero-dependency CI execution.
-   - Production schema uses PostgreSQL 16 with native `JSONB` and timezone-aware timestamps. Migration `003_analytics_and_alerts.py` is configured and ready for live PostgreSQL deployment.
+   - Production schema uses PostgreSQL 16 with native `JSONB` and timezone-aware timestamps. Migrations `001` through `004_safety_module.py` are configured and ready for live PostgreSQL deployment.
 2. **Local Bounded Async Runner vs. Distributed Workers:**
-   - Phase 3 & 4 implement asynchronous execution pipelines (`asyncio.create_task`) and on-demand alert evaluations.
+   - Phase 3, 4, and 5 implement asynchronous execution pipelines (`asyncio.create_task`).
    - For recurring background cron monitoring and high-volume experiment execution, future phases will introduce a dedicated Celery/Redis scheduler.
 3. **Deterministic Percentiles Across Databases:**
-   - Instead of relying on database-specific percentile functions (`percentile_cont` in PostgreSQL vs non-existent in standard SQLite), `AnalyticsService` computes linear interpolated percentiles in Python over indexed query results, guaranteeing consistent numerical behavior across local development and production.
+   - `AnalyticsService` computes linear interpolated percentiles in Python over indexed query results, guaranteeing consistent numerical behavior across local development and production.
+
 

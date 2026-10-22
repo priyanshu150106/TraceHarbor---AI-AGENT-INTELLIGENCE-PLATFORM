@@ -14,6 +14,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.experiment import Experiment
     from app.models.project import Project
+    from app.models.safety import SafetyCampaign
     from app.models.test_case import TestCase
 
 
@@ -44,6 +45,11 @@ class Dataset(Base):
         Text,
         nullable=True,
     )
+    dataset_type: Mapped[str] = mapped_column(
+        String(50),
+        default="general",
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -69,6 +75,11 @@ class Dataset(Base):
     )
     experiments: Mapped[list["Experiment"]] = relationship(
         "Experiment",
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+    )
+    safety_campaigns: Mapped[list["SafetyCampaign"]] = relationship(
+        "SafetyCampaign",
         back_populates="dataset",
         cascade="all, delete-orphan",
     )

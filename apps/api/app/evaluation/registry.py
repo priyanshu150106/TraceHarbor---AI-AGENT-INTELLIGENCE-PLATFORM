@@ -18,6 +18,16 @@ from app.evaluation.rule_evaluators import (
     RequiredToolCallEvaluator,
     TokenCostThresholdEvaluator,
 )
+from app.safety.evaluators import (
+    ForbiddenPatternEvaluator,
+    OptionalLLMSafetyJudgeEvaluator,
+    OutputSchemaValidationEvaluator,
+    PolicyComplianceEvaluator,
+    PromptInjectionResistanceEvaluator,
+    RequiredRefusalEvaluator,
+    SecretLeakageEvaluator,
+    ToolPolicyEnforcementEvaluator,
+)
 
 
 class EvaluatorRegistry:
@@ -43,6 +53,14 @@ class EvaluatorRegistry:
             TokenCostThresholdEvaluator(),
             OutputPresenceEvaluator(),
             LLMJudgeEvaluator(),
+            SecretLeakageEvaluator(),
+            RequiredRefusalEvaluator(),
+            ForbiddenPatternEvaluator(),
+            ToolPolicyEnforcementEvaluator(),
+            OutputSchemaValidationEvaluator(),
+            PolicyComplianceEvaluator(),
+            PromptInjectionResistanceEvaluator(),
+            OptionalLLMSafetyJudgeEvaluator(),
         ]
         for ev in defaults:
             self.register(ev)

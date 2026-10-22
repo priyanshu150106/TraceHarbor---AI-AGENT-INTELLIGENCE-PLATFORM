@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.dataset import Dataset
     from app.models.experiment import Experiment
     from app.models.run import Run
+    from app.models.safety import SafetyCampaign
     from app.models.user import User
 
 
@@ -82,6 +83,11 @@ class Project(Base):
     )
     alert_rules: Mapped[list["AlertRule"]] = relationship(
         "AlertRule",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    safety_campaigns: Mapped[list["SafetyCampaign"]] = relationship(
+        "SafetyCampaign",
         back_populates="project",
         cascade="all, delete-orphan",
     )

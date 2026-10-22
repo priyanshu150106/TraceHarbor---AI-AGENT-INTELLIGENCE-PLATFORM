@@ -13,6 +13,8 @@ SUPPORTED_METRICS = {
     "cost_usd",
     "eval_pass_rate",
     "regression_count",
+    "safety_pass_rate",
+    "safety_critical_failures",
 }
 
 SUPPORTED_OPERATORS = {">", ">=", "<", "<=", "=="}

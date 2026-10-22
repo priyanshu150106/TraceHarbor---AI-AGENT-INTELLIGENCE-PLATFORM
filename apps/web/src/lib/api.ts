@@ -27,6 +27,13 @@ import {
   Project,
   RunDetail,
   RunListResponse,
+  SafetyCampaignCreate,
+  SafetyCampaignDetail,
+  SafetyCampaignListResponse,
+  SafetyCampaignSummary,
+  SafetyComparison,
+  SafetyOverview,
+  SafetyTestResult,
 } from "./types";
 
 const API_BASE_URL =
@@ -385,5 +392,117 @@ export async function testAlertRule(
   return request<AlertEvaluationResult>(`/v1/alerts/test/${ruleId}${query}`, {
     method: "POST",
   });
+}
+
+// ------------------- Phase 5: Safety & Red-Teaming API -------------------
+
+export async function fetchSafetyOverview(projectId?: string): Promise<SafetyOverview> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<SafetyOverview>(`/v1/safety/overview${query}`);
+}
+
+export async function fetchSafetyCampaigns(params: {
+  status?: string;
+  agentName?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  projectId?: string;
+} = {}): Promise<SafetyCampaignListResponse> {
+  const queryParts: string[] = [];
+  if (params.status && params.status !== "all") queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  if (params.agentName) queryParts.push(`agent_name=${encodeURIComponent(params.agentName)}`);
+  if (params.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params.page) queryParts.push(`page=${params.page}`);
+  if (params.pageSize) queryParts.push(`page_size=${params.pageSize}`);
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<SafetyCampaignListResponse>(`/v1/safety/campaigns${query}`);
+}
+
+export async function fetchSafetyCampaignDetail(id: string): Promise<SafetyCampaignDetail> {
+  return request<SafetyCampaignDetail>(`/v1/safety/campaigns/${id}`);
+}
+
+export async function createSafetyCampaign(
+  payload: SafetyCampaignCreate,
+  runSync: boolean = false
+): Promise<SafetyCampaignSummary> {
+  const query = runSync ? "?run_sync=true" : "";
+  return request<SafetyCampaignSummary>(`/v1/safety/campaigns${query}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function compareSafetyCampaigns(
+  baselineId: string,
+  candidateId: string
+): Promise<SafetyComparison> {
+  return request<SafetyComparison>(
+    `/v1/safety/compare?a=${encodeURIComponent(baselineId)}&b=${encodeURIComponent(candidateId)}`
+  );
+}
+
+export async function fetchSafetyDatasets(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  projectId?: string;
+} = {}): Promise<{
+  items: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    dataset_type: string;
+    case_count: number;
+    created_at: string;
+  }>;
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}> {
+  const queryParts: string[] = [];
+  if (params.page) queryParts.push(`page=${params.page}`);
+  if (params.pageSize) queryParts.push(`page_size=${params.pageSize}`);
+  if (params.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request(`/v1/safety/datasets${query}`);
+}
+
+export async function uploadSafetyDataset(formData: FormData): Promise<{
+  id: string;
+  name: string;
+  cases_imported: number;
+  message: string;
+}> {
+  const url = `${API_BASE_URL}/v1/safety/datasets/upload`;
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    let errorMsg = `Upload failed with HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) {
+        errorMsg = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMsg);
+  }
+
+  return res.json();
+}
+
+export async function fetchSafetyAgents(): Promise<ApprovedAgent[]> {
+  return request<ApprovedAgent[]>("/v1/safety/agents");
 }
 
