@@ -75,10 +75,16 @@ class AnalyticsOverviewResponse(BaseModel):
     successful_runs: int = 0
     failed_runs: int = 0
     error_rate: float = 0.0
+    p50_duration_ms: float = 0.0
     avg_duration_ms: float = 0.0
     p95_duration_ms: float = 0.0
     total_tokens: int = 0
     total_cost_usd: float = 0.0
+    cost_reported_runs: int = 0
+    unmetered_runs: int = 0
+    eval_pass_rate: float | None = None
+    regression_count: int = 0
+    time_range: str = "7d"
     recent_runs: list[RunSummaryResponse] = Field(default_factory=list)
 
 

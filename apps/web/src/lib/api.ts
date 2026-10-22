@@ -4,8 +4,17 @@
  */
 
 import {
+  AlertEvaluationBatch,
+  AlertEvaluationResult,
+  AlertHistoryList,
+  AlertRule,
+  AlertRuleCreate,
+  AlertRuleUpdate,
   AnalyticsOverview,
+  AnalyticsTimeseries,
+  AgentsAnalytics,
   ApprovedAgent,
+  CostBreakdown,
   DatasetDetail,
   DatasetListResponse,
   DatasetUploadResponse,
@@ -14,6 +23,7 @@ import {
   ExperimentListResponse,
   ExperimentSummary,
   HealthStatus,
+  ModelsAnalytics,
   Project,
   RunDetail,
   RunListResponse,
@@ -76,8 +86,31 @@ export async function fetchHealth(): Promise<HealthStatus> {
   return request<HealthStatus>("/health");
 }
 
-export async function fetchAnalyticsOverview(projectId?: string): Promise<AnalyticsOverview> {
-  const query = projectId ? `?project_id=${projectId}` : "";
+export async function fetchAnalyticsOverview(
+  paramsOrProjectId?: string | {
+    projectId?: string;
+    timeRange?: string;
+    agentName?: string;
+  }
+): Promise<AnalyticsOverview> {
+  let projectId: string | undefined;
+  let timeRange: string | undefined;
+  let agentName: string | undefined;
+
+  if (typeof paramsOrProjectId === "string") {
+    projectId = paramsOrProjectId;
+  } else if (paramsOrProjectId) {
+    projectId = paramsOrProjectId.projectId;
+    timeRange = paramsOrProjectId.timeRange;
+    agentName = paramsOrProjectId.agentName;
+  }
+
+  const queryParts: string[] = [];
+  if (projectId) queryParts.push(`project_id=${encodeURIComponent(projectId)}`);
+  if (timeRange) queryParts.push(`time_range=${encodeURIComponent(timeRange)}`);
+  if (agentName) queryParts.push(`agent_name=${encodeURIComponent(agentName)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
   return request<AnalyticsOverview>(`/v1/analytics/overview${query}`);
 }
 
@@ -228,3 +261,129 @@ export async function createExperiment(payload: {
 export async function compareExperiments(aId: string, bId: string): Promise<ExperimentComparison> {
   return request<ExperimentComparison>(`/v1/experiments/compare?a=${aId}&b=${bId}`);
 }
+
+// ------------------- Phase 4: Advanced Analytics -------------------
+
+export async function fetchAnalyticsTimeseries(params: {
+  projectId?: string;
+  timeRange?: string;
+  agentName?: string;
+  interval?: string;
+} = {}): Promise<AnalyticsTimeseries> {
+  const queryParts: string[] = [];
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+  if (params.timeRange) queryParts.push(`time_range=${encodeURIComponent(params.timeRange)}`);
+  if (params.agentName) queryParts.push(`agent_name=${encodeURIComponent(params.agentName)}`);
+  if (params.interval) queryParts.push(`interval=${encodeURIComponent(params.interval)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<AnalyticsTimeseries>(`/v1/analytics/timeseries${query}`);
+}
+
+export async function fetchAnalyticsModels(params: {
+  projectId?: string;
+  timeRange?: string;
+} = {}): Promise<ModelsAnalytics> {
+  const queryParts: string[] = [];
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+  if (params.timeRange) queryParts.push(`time_range=${encodeURIComponent(params.timeRange)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<ModelsAnalytics>(`/v1/analytics/models${query}`);
+}
+
+export async function fetchAnalyticsAgents(params: {
+  projectId?: string;
+  timeRange?: string;
+} = {}): Promise<AgentsAnalytics> {
+  const queryParts: string[] = [];
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+  if (params.timeRange) queryParts.push(`time_range=${encodeURIComponent(params.timeRange)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<AgentsAnalytics>(`/v1/analytics/agents${query}`);
+}
+
+export async function fetchCostBreakdown(params: {
+  projectId?: string;
+  timeRange?: string;
+} = {}): Promise<CostBreakdown> {
+  const queryParts: string[] = [];
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+  if (params.timeRange) queryParts.push(`time_range=${encodeURIComponent(params.timeRange)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<CostBreakdown>(`/v1/analytics/cost-breakdown${query}`);
+}
+
+// ------------------- Phase 4: Alert Rules & History -------------------
+
+export async function fetchAlertRules(projectId?: string): Promise<AlertRule[]> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<AlertRule[]>(`/v1/alerts/rules${query}`);
+}
+
+export async function createAlertRule(
+  payload: AlertRuleCreate,
+  projectId?: string
+): Promise<AlertRule> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<AlertRule>(`/v1/alerts/rules${query}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAlertRule(
+  ruleId: string,
+  payload: AlertRuleUpdate,
+  projectId?: string
+): Promise<AlertRule> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<AlertRule>(`/v1/alerts/rules/${ruleId}${query}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAlertRule(
+  ruleId: string,
+  projectId?: string
+): Promise<{ status: string; message: string }> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<{ status: string; message: string }>(`/v1/alerts/rules/${ruleId}${query}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchAlertHistory(params: {
+  projectId?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<AlertHistoryList> {
+  const queryParts: string[] = [];
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+  if (params.limit) queryParts.push(`limit=${params.limit}`);
+  if (params.offset) queryParts.push(`offset=${params.offset}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<AlertHistoryList>(`/v1/alerts/history${query}`);
+}
+
+export async function evaluateAlertRules(projectId?: string): Promise<AlertEvaluationBatch> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<AlertEvaluationBatch>(`/v1/alerts/evaluate${query}`, {
+    method: "POST",
+  });
+}
+
+export async function testAlertRule(
+  ruleId: string,
+  projectId?: string
+): Promise<AlertEvaluationResult> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<AlertEvaluationResult>(`/v1/alerts/test/${ruleId}${query}`, {
+    method: "POST",
+  });
+}
+

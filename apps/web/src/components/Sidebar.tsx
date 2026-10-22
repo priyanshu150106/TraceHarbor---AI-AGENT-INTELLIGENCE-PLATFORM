@@ -35,6 +35,24 @@ export function Sidebar() {
       ),
     },
     {
+      name: "Analytics",
+      href: "/analytics",
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+    },
+    {
+      name: "Alerts",
+      href: "/alerts",
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      ),
+    },
+    {
       name: "Datasets",
       href: "/datasets",
       icon: (
@@ -132,7 +150,7 @@ export function Sidebar() {
         </div>
 
         <div className="text-[11px] text-slate-500 px-2 space-y-0.5">
-          <p className="font-medium text-slate-400">Phase 3: Evaluation Engine</p>
+          <p className="font-medium text-slate-400">Phase 4: Analytics & Alerts</p>
           <p>TraceHarbor Platform</p>
         </div>
       </div>

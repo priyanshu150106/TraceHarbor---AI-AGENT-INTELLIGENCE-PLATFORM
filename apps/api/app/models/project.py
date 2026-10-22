@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.alert import AlertRule
     from app.models.api_key import ApiKey
     from app.models.dataset import Dataset
     from app.models.experiment import Experiment
@@ -76,6 +77,11 @@ class Project(Base):
     )
     experiments: Mapped[list["Experiment"]] = relationship(
         "Experiment",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    alert_rules: Mapped[list["AlertRule"]] = relationship(
+        "AlertRule",
         back_populates="project",
         cascade="all, delete-orphan",
     )

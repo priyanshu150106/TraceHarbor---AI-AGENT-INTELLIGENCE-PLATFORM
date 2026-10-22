@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.alerts import router as alerts_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.datasets import router as datasets_router
 from app.api.v1.experiments import router as experiments_router
@@ -54,10 +55,11 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/v1/ingest")
 app.include_router(ingest_router, prefix="/api/v1/ingest")
 
-# Mount Runs, Analytics, Projects, Datasets, and Experiments routers at /v1 and /api/v1
+# Mount Runs, Analytics, Alerts, Projects, Datasets, and Experiments routers at /v1 and /api/v1
 for prefix in ("/v1", "/api/v1"):
     app.include_router(runs_router, prefix=prefix)
     app.include_router(analytics_router, prefix=prefix)
+    app.include_router(alerts_router, prefix=prefix)
     app.include_router(projects_router, prefix=prefix)
     app.include_router(datasets_router, prefix=prefix)
     app.include_router(experiments_router, prefix=prefix)

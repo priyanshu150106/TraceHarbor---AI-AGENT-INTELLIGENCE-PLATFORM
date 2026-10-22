@@ -134,3 +134,11 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
         yield ac
+
+
+@pytest_asyncio.fixture
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an isolated async database session for seeding entities in tests."""
+    async with TestingSessionLocal() as session:
+        yield session
+        await session.rollback()

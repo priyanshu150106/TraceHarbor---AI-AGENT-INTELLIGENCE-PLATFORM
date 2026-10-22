@@ -58,10 +58,16 @@ export interface AnalyticsOverview {
   successful_runs: number;
   failed_runs: number;
   error_rate: number;
+  p50_duration_ms?: number;
   avg_duration_ms: number;
   p95_duration_ms: number;
   total_tokens: number;
   total_cost_usd: number;
+  cost_reported_runs?: number;
+  unmetered_runs?: number;
+  eval_pass_rate?: number | null;
+  regression_count?: number;
+  time_range?: string;
   recent_runs: RunSummary[];
 }
 
@@ -253,3 +259,168 @@ export interface ExperimentComparison {
   missing: ComparedCaseItem[];
   all_cases: ComparedCaseItem[];
 }
+
+// ------------------- Phase 4: Advanced Analytics -------------------
+
+export interface TimeseriesPoint {
+  timestamp: string;
+  total_runs: number;
+  successful_runs: number;
+  failed_runs: number;
+  error_rate: number;
+  p50_duration_ms: number;
+  p95_duration_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  eval_pass_rate?: number | null;
+}
+
+export interface AnalyticsTimeseries {
+  time_range: string;
+  interval: string;
+  points: TimeseriesPoint[];
+  total_points: number;
+}
+
+export interface ModelUsageItem {
+  model: string;
+  call_count: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export interface ModelsAnalytics {
+  items: ModelUsageItem[];
+  total_models: number;
+}
+
+export interface AgentUsageItem {
+  agent_name: string;
+  agent_version: string;
+  total_runs: number;
+  successful_runs: number;
+  failed_runs: number;
+  error_rate: number;
+  avg_duration_ms: number;
+  p95_duration_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  eval_pass_rate?: number | null;
+}
+
+export interface AgentsAnalytics {
+  items: AgentUsageItem[];
+  total_agents: number;
+}
+
+export interface CostBreakdownItem {
+  date: string;
+  agent_name: string;
+  model: string;
+  cost_usd: number;
+  token_count: number;
+}
+
+export interface CostBreakdown {
+  total_cost_usd: number;
+  cost_reported_runs: number;
+  unmetered_runs: number;
+  by_agent: Record<string, number>;
+  by_model: Record<string, number>;
+  daily_breakdown: CostBreakdownItem[];
+}
+
+// ------------------- Phase 4: Alerting -------------------
+
+export interface AlertRule {
+  id: string;
+  project_id: string;
+  name: string;
+  metric: string;
+  operator: string;
+  threshold: number;
+  window_minutes: number;
+  is_active: boolean;
+  channel: string;
+  webhook_url?: string | null;
+  has_webhook_secret: boolean;
+  cooldown_minutes: number;
+  last_triggered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertRuleCreate {
+  name: string;
+  metric: string;
+  operator?: string;
+  threshold: number;
+  window_minutes?: number;
+  channel?: string;
+  webhook_url?: string;
+  webhook_secret?: string;
+  cooldown_minutes?: number;
+}
+
+export interface AlertRuleUpdate {
+  name?: string;
+  metric?: string;
+  operator?: string;
+  threshold?: number;
+  window_minutes?: number;
+  is_active?: boolean;
+  channel?: string;
+  webhook_url?: string;
+  webhook_secret?: string;
+  cooldown_minutes?: number;
+}
+
+export interface AlertHistory {
+  id: string;
+  rule_id: string;
+  rule_name?: string | null;
+  project_id: string;
+  metric: string;
+  metric_value: number;
+  threshold: number;
+  operator: string;
+  message: string;
+  status: string;
+  notification_status: string;
+  notification_error?: string | null;
+  acknowledged: boolean;
+  fired_at: string;
+  created_at: string;
+}
+
+export interface AlertHistoryList {
+  items: AlertHistory[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface AlertEvaluationResult {
+  rule_id: string;
+  rule_name: string;
+  metric: string;
+  observed_value: number;
+  threshold: number;
+  operator: string;
+  triggered: boolean;
+  cooldown_active: boolean;
+  notification_status?: string | null;
+  message: string;
+}
+
+export interface AlertEvaluationBatch {
+  rules_evaluated: number;
+  alerts_triggered: number;
+  cooldown_suppressed: number;
+  results: AlertEvaluationResult[];
+}
+

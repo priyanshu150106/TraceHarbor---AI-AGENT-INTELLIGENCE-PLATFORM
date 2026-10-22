@@ -231,7 +231,61 @@ When comparing two completed experiments (Baseline $A$ and Candidate $B$) over a
 
 ---
 
-## 5. Authentication & Tenant Isolation
+## 5. Advanced Analytics, Monitoring & Alerting (Phase 4)
+
+### 5.1 Metric Semantics & SQL Aggregation Flow
+TraceHarbor computes operational and performance metrics across recorded runs, spans, and experiment test cases:
+
+| Metric | Exact Definition & Formula | Edge Cases & Semantics |
+| :--- | :--- | :--- |
+| **Total Runs** | Count of all `Run` records belonging to the project within the time window. | Excludes unassigned or cross-tenant runs. |
+| **Successful Runs** | Runs where `status == "success"`. | Completed executions without unhandled errors. |
+| **Failed Runs** | Runs where `status == "error"`. | Unhandled agent crashes or exceptions. |
+| **Incomplete Runs** | Runs where `status IN ("running", "queued")`. | Excluded from latency percentile calculations to prevent skewing durations. |
+| **Error Rate** | $\frac{\text{Failed Runs}}{\text{Successful Runs} + \text{Failed Runs}}$ | Evaluates to $0.0$ when completed runs $= 0$. |
+| **Duration Percentiles (p50, p95)** | Continuous linear interpolation $k = (N - 1) \times p$ over non-null `duration_ms` of completed runs. | Returns $0.0$ if no completed runs exist. Works identically on SQLite and PostgreSQL. |
+| **Total Tokens** | $\sum \text{total\_tokens}$ across recorded `Span` records. | Broken down into prompt tokens and completion tokens. Missing tokens default to $0$. |
+| **Estimated Model Cost** | $\sum \text{cost\_usd}$ across recorded LLM spans. | Explicitly distinguishes metered runs from unmetered runs; unmetered runs are tracked via `unmetered_runs`. |
+| **Evaluation Pass Rate** | $\frac{\text{Passed Experiment Results}}{\text{Total Completed Cases}}$ | Returns `null` if no benchmark experiments exist in the window. |
+| **Regression Count** | Count of test cases that passed in baseline experiments but failed in candidate experiments. | Evaluated via `ExperimentResult` categorization. |
+
+#### Continuous Time-Series Bucketing:
+To prevent missing intervals or NaN discontinuities on frontend trendlines, `AnalyticsService.get_timeseries` dynamically creates contiguous datetime buckets (e.g. 24 hourly buckets for `24h`, daily buckets for `7d` / `30d`). Sparse intervals with zero recorded runs are padded with `total_runs: 0, error_rate: 0.0, p50: 0, p95: 0, cost: 0.0`.
+
+### 5.2 Alert Rule Lifecycle & Evaluation Engine
+TraceHarbor provides an automated monitoring and alerting engine (`AlertEvaluationService`) that continuously measures agent metrics against user-defined thresholds:
+
+1. **Rule Configuration (`AlertRule`):**
+   - **Metrics Supported:** `error_rate`, `p95_latency_ms`, `total_cost`, `eval_pass_rate`, `regression_count`.
+   - **Operators:** `>`, `>=`, `<`, `<=`, `==`.
+   - **Windows:** Configurable evaluation lookback in minutes (`15m`, `60m`, `360m`, `1440m`, `10080m`).
+   - **Channels:** `in_app`, `webhook`, `both`.
+   - **Cooldown:** Configurable mute period in minutes (default 30m) to eliminate notification fatigue.
+2. **Deterministic Evaluation Pipeline:**
+   - Evaluates active rules against telemetry aggregated strictly within the rule's time window.
+   - Evaluates operator: $\text{observed\_value} \text{ op } \text{threshold}$.
+   - Checks cooldown: if the rule fired within the last `cooldown_minutes`, the incident is marked as `cooldown_active: true`, suppressing duplicate alerts and duplicate outbound dispatches.
+   - Persists incident record in `AlertHistory` with metric, threshold, operator, observed value, and notification delivery status.
+
+### 5.3 Outbound Webhook Delivery & SSRF Security
+Outbound webhook notifications are dispatched with defense-in-depth protections:
+1. **SSRF Guard (`validate_webhook_url`):**
+   - Resolves target hostnames to IP addresses.
+   - Strictly blocks:
+     - Loopback addresses (`127.0.0.0/8`, `::1`).
+     - Private RFC1918 networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`).
+     - Link-local and multicast networks (`169.254.0.0/16`, `224.0.0.0/4`).
+     - Cloud metadata endpoint (`169.254.169.254` / AWS/GCP/Azure instance metadata).
+   - Enforces valid `http://` or `https://` URI schemes.
+2. **Payload Signature (HMAC SHA-256):**
+   - If `webhook_secret` is configured, outgoing HTTP requests include the `X-TraceHarbor-Signature-256` header containing `sha256(secret, payload_bytes)`.
+3. **Execution Guardrails:**
+   - Webhook HTTP requests enforce a strict **5.0-second timeout** to prevent worker hangs.
+   - Delivery errors are recorded in `AlertHistory.notification_error` without leaking credentials into system logs.
+
+---
+
+## 6. Authentication & Tenant Isolation
 
 - **Ingestion Security:** All write operations require a valid `X-API-Key` matching an active SHA-256 hash in `api_keys`.
 - **Tenant Isolation:** A project API key can only write to or query runs, datasets, test cases, and experiments belonging to that key's assigned `project_id`. Attempting to read another project's resource returns `HTTP 404 Not Found` or `HTTP 403 Forbidden`.
@@ -240,14 +294,14 @@ When comparing two completed experiments (Baseline $A$ and Candidate $B$) over a
 
 ---
 
-## 6. Design Decisions & Current Limitations
+## 7. Design Decisions & Current Limitations
 
 1. **In-Memory SQLite vs. Live PostgreSQL:**
    - Unit and integration tests run entirely against in-memory SQLite for instant, zero-dependency CI execution.
-   - Production schema uses PostgreSQL 16 with native `JSONB` and timezone-aware timestamps. Migration `002_evaluation_engine.py` is configured and ready for live PostgreSQL deployment.
+   - Production schema uses PostgreSQL 16 with native `JSONB` and timezone-aware timestamps. Migration `003_analytics_and_alerts.py` is configured and ready for live PostgreSQL deployment.
 2. **Local Bounded Async Runner vs. Distributed Workers:**
-   - Phase 3 implements an asynchronous in-process runner (`asyncio.create_task`) bounded to sequential case execution per experiment.
-   - For high-volume production scale, this pipeline will transition to distributed Celery / Redis Streams workers in future phases.
-3. **LLM-as-Judge Guardrails:**
-   - The LLM judge includes automatic mock fallback mode when provider credentials are not present, ensuring that tests never require paid API keys and never fail due to external network issues.
-   - LLM judge rubrics are versioned, and outputs are strictly parsed into structured Pydantic schemas.
+   - Phase 3 & 4 implement asynchronous execution pipelines (`asyncio.create_task`) and on-demand alert evaluations.
+   - For recurring background cron monitoring and high-volume experiment execution, future phases will introduce a dedicated Celery/Redis scheduler.
+3. **Deterministic Percentiles Across Databases:**
+   - Instead of relying on database-specific percentile functions (`percentile_cont` in PostgreSQL vs non-existent in standard SQLite), `AnalyticsService` computes linear interpolated percentiles in Python over indexed query results, guaranteeing consistent numerical behavior across local development and production.
+

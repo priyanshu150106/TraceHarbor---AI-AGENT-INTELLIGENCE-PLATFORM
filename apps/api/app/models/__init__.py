@@ -4,6 +4,7 @@ TraceHarbor API — Models Package
 Exports all core SQLAlchemy ORM models.
 """
 
+from app.models.alert import AlertHistory, AlertRule
 from app.models.api_key import ApiKey
 from app.models.dataset import Dataset
 from app.models.experiment import Experiment
@@ -24,4 +25,6 @@ __all__ = [
     "TestCase",
     "Experiment",
     "ExperimentResult",
+    "AlertRule",
+    "AlertHistory",
 ]

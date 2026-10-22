@@ -8,7 +8,11 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-63%20passed-brightgreen.svg)](#6-testing--quality-assurance)
+[![CI](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM/actions/workflows/ci.yml/badge.svg)](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM/actions)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
+[![Tests](https://img.shields.io/badge/tests-73%20passed-brightgreen.svg)](#7-testing--quality-assurance)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
@@ -20,6 +24,8 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Overview Dashboard** | `/` | Operational KPIs: execution volume, success/error rates, avg/p95 latency, tokens, and cost. |
 | **Runs Explorer** | `/runs` | Searchable, paginated agent run history with status filters and copyable IDs. |
 | **Trace Waterfall** | `/runs/[id]` | Chronological waterfall timeline, hierarchical span trees, and inspector drawer. |
+| **Advanced Analytics** | `/analytics` | Time-series charts, p50/p95 percentiles, model economics, agent comparisons, and cost attribution. |
+| **Alerts & Monitoring** | `/alerts` | Configurable threshold rules, manual & automated evaluation, cooldown deduplication, and fired alert audit logs. |
 | **Dataset Hub** | `/datasets` | Create, preview, and upload JSON/CSV golden datasets with structural validation. |
 | **Experiment Hub** | `/experiments` | Execute benchmark evaluation runs against approved agent versions. |
 | **Experiment Details** | `/experiments/[id]` | Per-case evaluation scorecard, pass/fail explanations, and linked trace waterfalls. |
@@ -33,7 +39,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | :--- | :--- | :--- |
 | **Phase 0: Monorepo Foundation** | Implemented & Verified | Branch, author identity, remote, and folder layout configured |
 | **Phase 0: Backend Scaffolding** | Implemented & Tested | FastAPI app with `/health`, structured logging, and CORS |
-| **Phase 0: Database Models** | Implemented & Tested | SQLAlchemy 2.0 models for users, projects, api_keys, runs, spans |
+| **Phase 0: Database Models** | Implemented & Tested | SQLAlchemy 2.0 models for users, projects, api_keys, runs, spans, alert rules, history |
 | **Phase 0: Infrastructure Specs** | Implemented | Docker Compose for PostgreSQL 16 (pgvector) and Redis 7 |
 | **Phase 1A: Trace Ingestion API** | Implemented & Tested | `POST /v1/ingest/spans` with API key auth, cycle detection, tenant isolation, and atomic batches |
 | **Phase 1A: Python Tracing SDK** | Implemented & Tested | Client library with sync/async decorators, nested spans, redaction, queueing, retries, and kill-switch |
@@ -41,15 +47,19 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Phase 2: Observability Dashboard** | Implemented & Tested | Next.js 14 App Router UI with Overview, Runs Explorer, Projects, Settings |
 | **Phase 2: Trace Waterfall & Tree UI** | Implemented & Tested | Collapsible span hierarchy, relative timing bar charts, and span inspector panel |
 | **Phase 2: Read APIs** | Implemented & Tested | `GET /v1/runs`, `GET /v1/runs/{id}`, `GET /v1/analytics/overview`, `GET /v1/projects` |
-| **Phase 3: Dataset Management** | **Implemented & Tested** | JSON & CSV uploads, UTF-8 validation, size & case limits (5MB / 500 cases), and pagination |
-| **Phase 3: Rule Evaluation Engine** | **Implemented & Tested** | 10 deterministic evaluators (regex with ReDoS protection, JSON schema, latency, tool calls) |
-| **Phase 3: Safe Agent Adapter Registry** | **Implemented & Tested** | Explicit registry (V1 baseline, V2 improved, V0.9 buggy); zero arbitrary code execution |
-| **Phase 3: Experiment Runner & Persistence** | **Implemented & Tested** | Async execution pipeline, Run & Span trace recording, per-case scoring, and aggregated metrics |
-| **Phase 3: Regression Detection Engine** | **Implemented & Tested** | Side-by-side diffing aligned by `test_case_id`, delta metrics, regressions vs improvements |
-| **Phase 3: Optional LLM-as-Judge** | **Implemented & Tested** | Provider-neutral evaluator (correctness, helpfulness, groundedness, tone) with mock fallback mode |
-| **Phase 3: Web UI for Evaluation** | **Implemented & Tested** | Next.js pages `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare` |
-| **Phase 4: Red-Team Campaigns** | *Planned (Upcoming)* | Adversarial prompt executor and vulnerability discovery metrics |
-| **Phase 5: Failure Clustering** | *Planned* | Vector-based failure clustering via PostgreSQL pgvector |
+| **Phase 3: Dataset Management** | Implemented & Tested | JSON & CSV uploads, UTF-8 validation, size & case limits (5MB / 500 cases), and pagination |
+| **Phase 3: Rule Evaluation Engine** | Implemented & Tested | 10 deterministic evaluators (regex with ReDoS protection, JSON schema, latency, tool calls) |
+| **Phase 3: Safe Agent Adapter Registry** | Implemented & Tested | Explicit registry (V1 baseline, V2 improved, V0.9 buggy); zero arbitrary code execution |
+| **Phase 3: Experiment Runner & Persistence** | Implemented & Tested | Async execution pipeline, Run & Span trace recording, per-case scoring, and aggregated metrics |
+| **Phase 3: Regression Detection Engine** | Implemented & Tested | Side-by-side diffing aligned by `test_case_id`, delta metrics, regressions vs improvements |
+| **Phase 3: Optional LLM-as-Judge** | Implemented & Tested | Provider-neutral evaluator (correctness, helpfulness, groundedness, tone) with mock fallback mode |
+| **Phase 3: Web UI for Evaluation** | Implemented & Tested | Next.js pages `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare` |
+| **Phase 4: Advanced Analytics Engine** | **Implemented & Tested** | Time-series bucketing with zero-padded intervals, p50/p95 latency percentiles, model breakdown, agent comparison |
+| **Phase 4: Alerting & Monitoring Engine** | **Implemented & Tested** | Configurable rules (`error_rate`, `p95_latency_ms`, `total_cost`, `eval_pass_rate`), cooldown suppression |
+| **Phase 4: SSRF-Safe Outbound Webhooks** | **Implemented & Tested** | Blocks localhost, private subnets, and cloud metadata (169.254.169.254); HMAC-SHA256 signature signing |
+| **Phase 4: Web UI for Analytics & Alerts**| **Implemented & Tested** | Next.js interactive dashboards `/analytics` and `/alerts` |
+| **Phase 5: Red-Team Campaigns** | *Planned (Upcoming)* | Adversarial prompt executor and vulnerability discovery metrics |
+| **Phase 6: Failure Clustering** | *Planned* | Vector-based failure clustering via PostgreSQL pgvector |
 
 ---
 
@@ -229,14 +239,74 @@ npm run dev
 
 ---
 
-## 5. Python Tracing SDK Usage
+## 5. Advanced Analytics, Monitoring & Alerting (Phase 4)
 
-### 5.1 Local Installation
+### 5.1 Analytics Semantics & Aggregated Metrics
+TraceHarbor computes operational and performance metrics across recorded runs, spans, and experiment test cases:
+
+- **Total Runs:** Total execution count within the chosen time window (`24h`, `7d`, `30d`, `all`).
+- **Success & Error Rates:** $\text{Error Rate} = \frac{\text{Failed Runs}}{\text{Successful Runs} + \text{Failed Runs}}$. Runs marked `running` or `queued` are treated as incomplete and excluded from error rate calculations.
+- **Duration Percentiles ($p_{50}$ & $p_{95}$):** Continuous linear interpolation over completed run durations ($k = (N-1) \times p$), ensuring identical and predictable results across both SQLite and PostgreSQL.
+- **Token Volume:** Sum of input (prompt) and output (completion) tokens across spans.
+- **Cost Attribution:** Exact USD model execution cost summed from LLM spans. Differentiates metered runs from unmetered runs (`unmetered_runs`) to prevent misleading zero-cost assumptions.
+- **Continuous Time-Series:** Dynamically computes contiguous time intervals and zero-pads sparse periods so frontend trendlines never break or jump across missing days.
+
+### 5.2 Analytics API Endpoints
+- `GET /v1/analytics/overview?time_range=7d&agent_name=SupportAgent`: High-level KPI metrics, percentiles, and recent runs.
+- `GET /v1/analytics/timeseries?time_range=7d&interval=hour`: Continuous telemetry points (volume, errors, $p_{50}$, $p_{95}$, tokens, cost).
+- `GET /v1/analytics/models?time_range=7d`: Aggregated LLM calls, token burn, latency, and costs grouped by model name.
+- `GET /v1/analytics/agents?time_range=7d`: Execution volume, success rates, $p_{95}$ latency, and total costs grouped by agent and version.
+- `GET /v1/analytics/cost-breakdown?time_range=7d`: Daily cost breakdown by agent and model, with metered vs unmetered counts.
+
+### 5.3 Alert Rule Management & Evaluation Engine
+TraceHarbor includes an active monitoring engine that continuously evaluates agent telemetry against user-configured thresholds:
+
+- **Metrics Monitored:** `error_rate` (0.0–1.0), `p95_latency_ms` (ms), `total_cost` ($), `eval_pass_rate` (0.0–1.0), `regression_count`.
+- **Operators:** `>`, `>=`, `<`, `<=`, `==`.
+- **Evaluation Windows:** `15m`, `1h`, `6h`, `24h`, `7d`.
+- **Notification Channels:** `in_app` (incident audit history), `webhook` (outbound HTTP), `both`.
+- **Cooldown & Deduplication:** Configurable mute period (default 30m) prevents repeated alert storms when a metric stays above threshold.
+- **Alert Endpoints:**
+  - `POST /v1/alerts/rules`: Create a new alert rule.
+  - `GET /v1/alerts/rules`: List all alert rules for the current project.
+  - `PATCH /v1/alerts/rules/{id}`: Update threshold, window, channel, webhook, or enable/disable.
+  - `DELETE /v1/alerts/rules/{id}`: Delete an alert rule.
+  - `GET /v1/alerts/history`: Paginated audit log of triggered alerts and delivery status.
+  - `POST /v1/alerts/evaluate`: On-demand batch evaluation of all active rules.
+  - `POST /v1/alerts/test/{id}`: Dry-run test of a single rule against live telemetry.
+
+### 5.4 SSRF-Protected Outbound Webhooks
+When configuring webhook notifications, TraceHarbor enforces strict server-side request forgery (SSRF) defenses:
+- **IP Range Filtering:** Automatically resolves target hostnames and rejects loopback (`127.0.0.1`, `::1`), private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`), and cloud metadata IPs (`169.254.169.254`).
+- **Cryptographic Signatures:** Outbound HTTP payloads are signed with an HMAC SHA-256 digest (`X-TraceHarbor-Signature-256`) when a secret is configured.
+- **Bounded Timeouts:** Webhook HTTP requests enforce a strict 5.0-second timeout.
+
+---
+
+## 6. Generating Real Telemetry & Exploring Phase 4
+
+To generate live agent telemetry, evaluate rules, and inspect real-time metrics on the dashboard:
+
+```powershell
+# 1. Run the deterministic customer support demo agent to generate real runs & spans
+python -m demo-agents.support_agent.agent
+```
+The demo agent will invoke tool calls, execute multi-step reasoning, and stream spans to the backend.
+
+Then explore the new Phase 4 views:
+- **Advanced Analytics (`http://localhost:3000/analytics`):** View volume and error trendlines, $p_{50}$/$p_{95}$ latency graphs, model cost economics, and agent version comparisons.
+- **Alerts & Monitoring (`http://localhost:3000/alerts`):** Create an alert rule (e.g. `error_rate > 0.05`), click **"Evaluate Rules Now"**, and review triggered incidents in the audit log.
+
+---
+
+## 7. Python Tracing SDK Usage
+
+### 7.1 Local Installation
 ```bash
 pip install -e packages/sdk-python
 ```
 
-### 5.2 Basic Tracing Example
+### 7.2 Basic Tracing Example
 ```python
 import traceharbor
 
@@ -268,13 +338,15 @@ traceharbor.shutdown()
 
 ---
 
-## 6. Testing & Quality Assurance
+## 8. Testing & Quality Assurance
 
-### 6.1 Backend Test Suite (54 Tests)
+### 8.1 Backend Test Suite (64 Tests)
 ```powershell
 python -m pytest apps/api/app/tests -v
 ```
 Covers:
+- **Analytics:** overview KPI calculation, zero-padded continuous timeseries, model attribution, agent version comparisons, empty project handling, and tenant isolation.
+- **Alerting & Monitoring:** rule CRUD lifecycle, operator validation, window limits, threshold evaluation, cooldown deduplication, and SSRF URL validation.
 - **Datasets:** creation, pagination, test-case addition, JSON & CSV uploads, validation error handling, case count limits, and safe deletion.
 - **Rule Evaluators:** exact match, case-insensitive match, required keywords, regex ReDoS safety, JSON syntax, JSON Schema validation, tool-call tracking, latency threshold checks, token/cost checks, output presence, and payload safe truncation.
 - **LLM Judge:** mock fallback mode, rubric validation, timeout handling, and unconfigured key handling with zero paid calls.
@@ -283,25 +355,25 @@ Covers:
 - **Tenant Isolation:** cross-project dataset access protection, experiment reading/writing isolation, and API key authentication enforcement.
 - **Core Tracing & Runs:** health endpoints, ingestion cycle validation, batch limits, runs pagination, and waterfall detail retrieval.
 
-### 6.2 Python SDK Test Suite (9 Tests)
+### 8.2 Python SDK Test Suite (9 Tests)
 ```powershell
 python -m pytest packages/sdk-python/tests -v
 ```
 Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, and transport failure isolation.
 
-### 6.3 Combined Automated Test Execution (63 Tests Total)
+### 8.3 Combined Automated Test Execution (73 Tests Total)
 ```powershell
 python -m pytest apps/api/app/tests packages/sdk-python/tests -v
 ```
-Result: **63 passed, 0 failures, 0 errors**.
+Result: **73 passed, 0 failures, 0 errors** in ~7.5 seconds.
 
-### 6.4 Python Code Style & Linting
+### 8.4 Python Code Style & Linting
 ```powershell
-python -m ruff check apps/api
+python -m ruff check apps/api packages/sdk-python
 ```
 Result: **All checks passed (0 errors)**.
 
-### 6.5 Frontend Typechecking, Linting & Production Build
+### 8.5 Frontend Typechecking, Linting & Production Build
 ```powershell
 cd apps/web
 npm run typecheck
@@ -311,32 +383,34 @@ npm run build
 Result:
 - **Typecheck:** Clean pass (`tsc --noEmit`).
 - **ESLint:** Clean pass with **0 errors and 0 warnings**.
-- **Production Build:** Successfully compiled all 10 App Router static and dynamic routes.
+- **Production Build:** Successfully compiled all 12 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/projects`, `/settings`, `/_not-found`).
 
 > **Database & Infrastructure Status Note:**  
-> All 63 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py` and `002_evaluation_engine.py`) against live PostgreSQL remains pending Docker availability.
+> All 73 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, and `003_analytics_and_alerts.py`) against live PostgreSQL remains pending Docker availability.
 
 ---
 
-## 7. Monorepo Directory Structure
+## 9. Monorepo Directory Structure
 
 ```
 TraceHarbor/
 ├── .github/workflows/ci.yml       # GitHub Actions CI workflow (linting, tests, build)
 ├── apps/
 │   ├── api/                       # FastAPI backend application
-│   │   ├── alembic/               # Database migrations (001_initial_schema, 002_evaluation_engine)
+│   │   ├── alembic/               # Database migrations (001_initial_schema, 002_evaluation_engine, 003_analytics_and_alerts)
 │   │   ├── app/
-│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, datasets, experiments
+│   │   │   ├── alerts/            # Alert evaluation engine, cooldown logic, SSRF-safe notifications
+│   │   │   ├── analytics/         # Metric semantics, percentiles, timeseries bucketing
+│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments
 │   │   │   ├── core/              # Config, DB connection, auth, structured logging
 │   │   │   ├── evaluation/        # Rule evaluators, LLM judge, runner, agent registry, parser
-│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment
+│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert
 │   │   │   ├── schemas/           # Pydantic v2 request and response contracts
-│   │   │   └── tests/             # 54 automated pytest tests covering all subsystems
+│   │   │   └── tests/             # 64 automated pytest tests covering all subsystems
 │   │   └── pyproject.toml         # Backend dependencies & tools configuration
 │   └── web/                       # Next.js 14 App Router web dashboard
 │       ├── src/
-│       │   ├── app/               # Routes: /, /runs, /datasets, /experiments, /experiments/compare
+│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /experiments/compare
 │       │   ├── components/        # Layout & UI components (Navbar, Sidebar)
 │       │   └── lib/               # Typed API client and TypeScript definitions
 │       └── package.json           # Frontend dependencies
@@ -356,16 +430,17 @@ TraceHarbor/
 
 ---
 
-## 8. Roadmap
+## 10. Roadmap
 
 TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 0:** Project Scaffolding & Database Foundation *(Completed & Tested)*
 - **Phase 1A:** Trace Ingestion API & Python SDK *(Completed & Tested)*
 - **Phase 2:** Trace Waterfall UI & Observability Dashboard *(Completed & Tested)*
 - **Phase 3:** Evaluation & Regression Testing Engine *(Completed & Tested)*
-- **Phase 4:** AI Safety & Red-Teaming Module *(Upcoming)*
-- **Phase 5:** Intelligence Layer (Vector Failure Clustering via pgvector)
-- **Phase 6:** Production Hardening & Portfolio Polish
+- **Phase 4:** Advanced Analytics, Monitoring & Alerting *(Completed & Tested)*
+- **Phase 5:** AI Safety & Red-Teaming Module *(Upcoming)*
+- **Phase 6:** Intelligence Layer (Vector Failure Clustering via pgvector)
+- **Phase 7:** Production Hardening & Portfolio Polish
 
 ---
 
@@ -375,3 +450,4 @@ TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **GitHub:** [@priyanshu150106](https://github.com/priyanshu150106)  
 - **Repository:** [TraceHarbor on GitHub](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM.git)  
 - **Contact:** [priyanshu150106@gmail.com](mailto:priyanshu150106@gmail.com)
+
