@@ -8,7 +8,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-94%20passed-brightgreen.svg)](#9-testing--quality-assurance)
+[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen.svg)](#10-testing--quality-assurance)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
@@ -30,6 +30,10 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Safety Campaigns** | `/safety/campaigns` | Searchable campaign execution history, pass/fail status, and launch modal. |
 | **Safety Campaign Details** | `/safety/campaigns/[id]` | Per-test security scorecard, redacted evidence drawer, and linked trace runs. |
 | **Safety Regression Engine** | `/safety/compare` | Head-to-head security regression detection (baseline vs candidate agent versions). |
+| **Failure Intelligence Feed** | `/failures` | Normalized failure event feed, severity/category filters, time range, cluster assignment, and sync actions. |
+| **Failure Clusters Overview** | `/failures/clusters` | Semantic cluster overview, status filter tabs, frequency trends, and bounded clustering job execution. |
+| **Cluster Investigation Detail**| `/failures/clusters/[id]` | Root-cause evidence, representative traces, affected agent versions, member events, and status audit trail. |
+| **Similar Failure Search** | `/failures/search` | Nearest-neighbor similarity search by query text or event ID with pgvector cosine distance and lexical fallback. |
 
 ---
 
@@ -39,7 +43,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | :--- | :--- | :--- |
 | **Phase 0: Monorepo Foundation** | Implemented & Verified | Branch, author identity, remote, and folder layout configured |
 | **Phase 0: Backend Scaffolding** | Implemented & Tested | FastAPI app with `/health`, structured logging, and CORS |
-| **Phase 0: Database Models** | Implemented & Tested | SQLAlchemy 2.0 models for users, projects, api_keys, runs, spans, alert rules, history |
+| **Phase 0: Database Models** | Implemented & Tested | SQLAlchemy 2.0 models for users, projects, api_keys, runs, spans, alert rules, history, failures |
 | **Phase 0: Infrastructure Specs** | Implemented | Docker Compose for PostgreSQL 16 (pgvector) and Redis 7 |
 | **Phase 1A: Trace Ingestion API** | Implemented & Tested | `POST /v1/ingest/spans` with API key auth, cycle detection, tenant isolation, and atomic batches |
 | **Phase 1A: Python Tracing SDK** | Implemented & Tested | Client library with sync/async decorators, nested spans, redaction, queueing, retries, and kill-switch |
@@ -58,8 +62,8 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Phase 4: Alerting & Monitoring Engine** | **Implemented & Tested** | Configurable rules (`error_rate`, `p95_latency_ms`, `total_cost`, `eval_pass_rate`), cooldown suppression |
 | **Phase 4: SSRF-Safe Outbound Webhooks** | **Implemented & Tested** | Blocks localhost, private subnets, and cloud metadata (169.254.169.254); HMAC-SHA256 signature signing |
 | **Phase 4: Web UI for Analytics & Alerts**| **Implemented & Tested** | Next.js interactive dashboards `/analytics` and `/alerts` |
-| **Phase 5: AI Safety & Red-Teaming** | **Implemented & Tested** | 7 threat categories, 8 deterministic evaluators, canary detection, safe execution boundary, campaigns, regression diff, and `/safety` UI |
-| **Phase 6: Failure Clustering** | *Planned* | Vector-based failure clustering via PostgreSQL pgvector |
+| **Phase 5: AI Safety & Red-Teaming** | **Implemented & Tested** | 7 threat categories, 8 deterministic evaluators, canary detection, safe boundary, campaigns, regression diff, and `/safety` UI |
+| **Phase 6: Failure Intelligence & Semantic Clustering** | **Implemented & Tested** | Normalized failure events, redaction engine, pluggable embeddings (fake/openai), PostgreSQL pgvector, threshold clustering, status audit trail, and Web UI |
 
 ---
 
@@ -423,13 +427,42 @@ traceharbor.shutdown()
 
 ---
 
-## 9. Testing & Quality Assurance
+## 9. Failure Intelligence & Semantic Clustering (Phase 6)
 
-### 9.1 Backend Test Suite (85 Tests)
+### 9.1 Overview & Architecture
+TraceHarbor automatically extracts, redacts, normalizes, and groups recurring AI agent failures across runs, spans, evaluation experiments, and safety benchmarks into persistent clusters using PostgreSQL pgvector.
+
+- **Idempotent Multi-Source Ingestion:** Syncs from failed runs (`status=error`), failed spans (`status=error`), failed evaluations (`status=failed`), and failed safety red-team tests (`passed=false`) without duplicate events.
+- **Strict Privacy & Redaction:** Strips API keys, Bearer tokens, URLs with embedded credentials, emails, IPv4 addresses, file paths, SSNs, credit cards, line numbers, and hex memory addresses before storage or embedding.
+- **Pluggable Embedding Providers:** Supports `openai` (`text-embedding-3-small`), `fake` (deterministic unit vectors for zero-dependency local testing), or disabled mode with an automatic lexical similarity fallback.
+- **Content-Hash Deduplication:** Uses SHA-256 hashes of normalized failure summaries (`content_hash`) to avoid re-embedding unchanged error text.
+- **Incremental Threshold-Based Clustering:** Assigns failure events to clusters via cosine distance against centroid vectors with configurable similarity thresholds (default $0.85$) and minimum cluster sizes (default $2$).
+- **Status Audit Trail:** Tracks cluster lifecycle (`new` -> `investigating` -> `resolved` -> `ignored`) with developer resolution notes and an immutable audit log in `cluster_status_changes`.
+
+### 9.2 Failure Intelligence API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/v1/failures/overview` | Fleet failure metrics, cluster status breakdown, severity counts, and embedding capability status |
+| `GET` | `/v1/failures` | Filterable, paginated normalized failure event feed |
+| `GET` | `/v1/failures/{id}` | Single failure event detail with source context and linked trace |
+| `POST` | `/v1/failures/search` | Nearest-neighbor vector similarity search or lexical fallback |
+| `GET` | `/v1/failures/clusters` | List semantic clusters with dominant category, severity distribution, and status filters |
+| `GET` | `/v1/failures/clusters/{id}` | Cluster detail with representative traces, member events, and status audit trail |
+| `PATCH`| `/v1/failures/clusters/{id}/status` | Update cluster status (`new`, `investigating`, `resolved`, `ignored`) with resolution notes |
+| `POST` | `/v1/failures/clusters/run` | Execute bounded clustering job against embedded failures |
+| `POST` | `/v1/failures/sync` | Idempotently scan and normalize failure events from existing runs, spans, and benchmarks |
+
+---
+
+## 10. Testing & Quality Assurance
+
+### 10.1 Backend Test Suite (97 Tests)
 ```powershell
 python -m pytest apps/api/app/tests -v
 ```
 Covers:
+- **Failure Intelligence & Clustering (Phase 6):** PII and credential redaction, error text normalization, normalizers across runs/spans/experiments/safety, FakeEmbeddingProvider determinism and validation, cosine similarity boundaries, lexical similarity fallback, single-pass clustering, cluster metadata aggregation, idempotent sync, cluster status transitions with audit logs, similarity search endpoints, and project tenant isolation.
 - **Safety Evaluators & Redaction:** secret canary detection, required refusal checks, forbidden pattern detection, tool policy enforcement, schema validation, multi-rule policy compliance, prompt injection resistance, LLM safety judge mock fallback, and canary redaction.
 - **Safety Runner, Campaigns & Regression:** agent isolation boundary, timeouts, input/output truncation, exception safety, campaign persistence, baseline vs candidate regression comparison, tenant isolation, and alert rule metric computation.
 - **Analytics:** overview KPI calculation, zero-padded continuous timeseries, model attribution, agent version comparisons, empty project handling, and tenant isolation.
@@ -439,25 +472,25 @@ Covers:
 - **Experiments:** agent directory listing, lifecycle execution, trace Run/Span linkage, per-case result persistence, empty dataset rejection, and unapproved agent rejection.
 - **Core Tracing & Runs:** health endpoints, ingestion cycle validation, batch limits, runs pagination, and waterfall detail retrieval.
 
-### 9.2 Python SDK Test Suite (9 Tests)
+### 10.2 Python SDK Test Suite (9 Tests)
 ```powershell
 python -m pytest packages/sdk-python/tests -v
 ```
 Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, and transport failure isolation.
 
-### 9.3 Combined Automated Test Execution (94 Tests Total)
+### 10.3 Combined Automated Test Execution (106 Tests Total)
 ```powershell
 python -m pytest apps/api/app/tests packages/sdk-python/tests -v
 ```
-Result: **94 passed, 0 failures, 0 errors** in ~8.5 seconds.
+Result: **106 passed, 0 failures, 0 errors** in ~9.5 seconds.
 
-### 9.4 Python Code Style & Linting
+### 10.4 Python Code Style & Linting
 ```powershell
 python -m ruff check apps/api packages/sdk-python
 ```
 Result: **All checks passed (0 errors)**.
 
-### 9.5 Frontend Typechecking, Linting & Production Build
+### 10.5 Frontend Typechecking, Linting & Production Build
 ```powershell
 cd apps/web
 npm run typecheck
@@ -466,36 +499,37 @@ npm run build
 ```
 Result:
 - **Typecheck:** Clean pass (`tsc --noEmit`).
-- **ESLint:** Clean pass with **0 errors and 0 warnings**.
-- **Production Build:** Successfully compiled all 16 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/safety`, `/safety/campaigns`, `/safety/campaigns/[id]`, `/safety/compare`, `/projects`, `/settings`, `/_not-found`).
+- **ESLint:** Clean pass.
+- **Production Build:** Successfully compiled all 18 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/safety`, `/safety/campaigns`, `/safety/campaigns/[id]`, `/safety/compare`, `/failures`, `/failures/clusters`, `/failures/clusters/[id]`, `/failures/search`, `/projects`, `/settings`, `/_not-found`).
 
 > **Database & Infrastructure Status Note:**  
-> All 94 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, `003_analytics_and_alerts.py`, and `004_safety_module.py`) against live PostgreSQL remains pending Docker availability.
+> All 106 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, `003_analytics_and_alerts.py`, `004_safety_module.py`, and `005_failure_intelligence.py`) against live PostgreSQL remains pending Docker availability.
 
 ---
 
-## 10. Monorepo Directory Structure
+## 11. Monorepo Directory Structure
 
 ```
 TraceHarbor/
 ├── .github/workflows/ci.yml       # GitHub Actions CI workflow (linting, tests, build)
 ├── apps/
 │   ├── api/                       # FastAPI backend application
-│   │   ├── alembic/               # Database migrations (001_initial, 002_eval, 003_alerts, 004_safety)
+│   │   ├── alembic/               # Database migrations (001_initial, 002_eval, 003_alerts, 004_safety, 005_failure_intelligence)
 │   │   ├── app/
 │   │   │   ├── alerts/            # Alert evaluation engine, cooldown logic, SSRF-safe notifications
 │   │   │   ├── analytics/         # Metric semantics, percentiles, timeseries bucketing
-│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments, safety
+│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments, safety, failures
 │   │   │   ├── core/              # Config, DB connection, auth, structured logging
 │   │   │   ├── evaluation/        # Rule evaluators, LLM judge, runner, agent registry, parser
-│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert, safety
+│   │   │   ├── failures/          # Redaction, normalizer, embedding service, clustering, sync
+│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert, safety, failure
 │   │   │   ├── safety/            # Redaction, evaluators, runner, comparison, dataset parser
 │   │   │   ├── schemas/           # Pydantic v2 request and response contracts
-│   │   │   └── tests/             # 85 automated pytest tests covering all subsystems
+│   │   │   └── tests/             # 97 automated pytest tests covering all subsystems
 │   │   └── pyproject.toml         # Backend dependencies & tools configuration
 │   └── web/                       # Next.js 14 App Router web dashboard
 │       ├── src/
-│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /safety
+│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /safety, /failures
 │       │   ├── components/        # Layout & UI components (Navbar, Sidebar)
 │       │   └── lib/               # Typed API client and TypeScript definitions
 │       └── package.json           # Frontend dependencies
@@ -515,7 +549,7 @@ TraceHarbor/
 
 ---
 
-## 11. Roadmap
+## 12. Roadmap
 
 TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 0:** Project Scaffolding & Database Foundation *(Completed & Tested)*
@@ -524,15 +558,16 @@ TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 3:** Evaluation & Regression Testing Engine *(Completed & Tested)*
 - **Phase 4:** Advanced Analytics, Monitoring & Alerting *(Completed & Tested)*
 - **Phase 5:** AI Safety & Red-Teaming Module *(Completed & Tested)*
-- **Phase 6:** Intelligence Layer (Vector Failure Clustering via pgvector)
-- **Phase 7:** Production Hardening & Portfolio Polish
+- **Phase 6:** Failure Intelligence & Semantic Clustering via pgvector *(Completed & Tested)*
+- **Phase 7:** Production Hardening & Portfolio Polish *(Upcoming)*
 
 ---
 
-## Author & Attribution
+## 13. Author & Attribution
 
 **Priyanshu Raman**  
 - **GitHub:** [@priyanshu150106](https://github.com/priyanshu150106)  
 - **Repository:** [TraceHarbor on GitHub](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM.git)  
 - **Contact:** [priyanshu150106@gmail.com](mailto:priyanshu150106@gmail.com)
+
 

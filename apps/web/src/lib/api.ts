@@ -34,6 +34,15 @@ import {
   SafetyComparison,
   SafetyOverview,
   SafetyTestResult,
+  ClusteringJobResponse,
+  FailureClusterDetail,
+  FailureClusterListResponse,
+  FailureClusterSummary,
+  FailureEvent,
+  FailureEventListResponse,
+  FailureOverviewMetrics,
+  FailureSyncResponse,
+  SimilarFailureSearchResponse,
 } from "./types";
 
 const API_BASE_URL =
@@ -505,4 +514,126 @@ export async function uploadSafetyDataset(formData: FormData): Promise<{
 export async function fetchSafetyAgents(): Promise<ApprovedAgent[]> {
   return request<ApprovedAgent[]>("/v1/safety/agents");
 }
+
+// ------------------- Phase 6: Failure Intelligence API -------------------
+
+export async function fetchFailureOverview(projectId?: string): Promise<FailureOverviewMetrics> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<FailureOverviewMetrics>(`/v1/failures/overview${query}`);
+}
+
+export async function fetchFailureEvents(params: {
+  page?: number;
+  pageSize?: number;
+  severity?: string;
+  category?: string;
+  agentName?: string;
+  clusterId?: string;
+  search?: string;
+  projectId?: string;
+} = {}): Promise<FailureEventListResponse> {
+  const queryParts: string[] = [];
+  if (params.page) queryParts.push(`page=${params.page}`);
+  if (params.pageSize) queryParts.push(`page_size=${params.pageSize}`);
+  if (params.severity && params.severity !== "all") queryParts.push(`severity=${encodeURIComponent(params.severity)}`);
+  if (params.category && params.category !== "all") queryParts.push(`category=${encodeURIComponent(params.category)}`);
+  if (params.agentName) queryParts.push(`agent_name=${encodeURIComponent(params.agentName)}`);
+  if (params.clusterId) queryParts.push(`cluster_id=${encodeURIComponent(params.clusterId)}`);
+  if (params.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<FailureEventListResponse>(`/v1/failures${query}`);
+}
+
+export async function fetchFailureEventDetail(
+  eventId: string,
+  projectId?: string
+): Promise<FailureEvent> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<FailureEvent>(`/v1/failures/${eventId}${query}`);
+}
+
+export async function fetchFailureClusters(params: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  category?: string;
+  search?: string;
+  projectId?: string;
+} = {}): Promise<FailureClusterListResponse> {
+  const queryParts: string[] = [];
+  if (params.page) queryParts.push(`page=${params.page}`);
+  if (params.pageSize) queryParts.push(`page_size=${params.pageSize}`);
+  if (params.status && params.status !== "all") queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  if (params.category && params.category !== "all") queryParts.push(`category=${encodeURIComponent(params.category)}`);
+  if (params.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params.projectId) queryParts.push(`project_id=${encodeURIComponent(params.projectId)}`);
+
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  return request<FailureClusterListResponse>(`/v1/failures/clusters${query}`);
+}
+
+export async function fetchFailureClusterDetail(
+  clusterId: string,
+  projectId?: string
+): Promise<FailureClusterDetail> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<FailureClusterDetail>(`/v1/failures/clusters/${clusterId}${query}`);
+}
+
+export async function updateClusterStatus(
+  clusterId: string,
+  payload: { status: string; resolution_notes?: string },
+  projectId?: string
+): Promise<FailureClusterSummary> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<FailureClusterSummary>(`/v1/failures/clusters/${clusterId}/status${query}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function triggerClusteringJob(
+  payload: {
+    similarity_threshold?: number;
+    min_cluster_size?: number;
+    max_candidates?: number;
+  } = {},
+  projectId?: string
+): Promise<ClusteringJobResponse> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<ClusteringJobResponse>(`/v1/failures/clusters/run${query}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function searchSimilarFailures(
+  payload: {
+    query_text?: string;
+    event_id?: string;
+    threshold?: number;
+    limit?: number;
+  },
+  projectId?: string
+): Promise<SimilarFailureSearchResponse> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<SimilarFailureSearchResponse>(`/v1/failures/search${query}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function syncFailureEvents(
+  autoEmbed: boolean = true,
+  projectId?: string
+): Promise<FailureSyncResponse> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<FailureSyncResponse>(`/v1/failures/sync${query}`, {
+    method: "POST",
+    body: JSON.stringify({ auto_embed: autoEmbed }),
+  });
+}
+
 

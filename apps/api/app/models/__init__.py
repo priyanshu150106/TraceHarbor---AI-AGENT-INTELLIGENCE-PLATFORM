@@ -9,6 +9,7 @@ from app.models.api_key import ApiKey
 from app.models.dataset import Dataset
 from app.models.experiment import Experiment
 from app.models.experiment_result import ExperimentResult
+from app.models.failure import ClusterStatusChange, FailureCluster, FailureEvent
 from app.models.project import Project
 from app.models.run import Run
 from app.models.safety import SafetyCampaign, SafetyTestResult
@@ -30,4 +31,7 @@ __all__ = [
     "AlertHistory",
     "SafetyCampaign",
     "SafetyTestResult",
+    "FailureEvent",
+    "FailureCluster",
+    "ClusterStatusChange",
 ]

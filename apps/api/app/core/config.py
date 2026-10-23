@@ -52,5 +52,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 
+    # ---------- Phase 6: Failure Intelligence & Embedding ----------
+    embedding_provider: str = ""  # 'fake', 'openai', or empty (disabled)
+    embedding_dimensions: int = 64
+    embedding_batch_size: int = 50
+    clustering_similarity_threshold: float = 0.85
+    clustering_min_cluster_size: int = 2
+    clustering_max_candidates: int = 1000
+
 
 settings = Settings()

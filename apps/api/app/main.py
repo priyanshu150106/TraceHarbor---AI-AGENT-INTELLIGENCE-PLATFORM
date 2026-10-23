@@ -13,6 +13,7 @@ from app.api.v1.alerts import router as alerts_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.datasets import router as datasets_router
 from app.api.v1.experiments import router as experiments_router
+from app.api.v1.failures import router as failures_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ingest import router as ingest_router
 from app.api.v1.projects import router as projects_router
@@ -56,7 +57,7 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/v1/ingest")
 app.include_router(ingest_router, prefix="/api/v1/ingest")
 
-# Mount Runs, Analytics, Alerts, Projects, Datasets, Experiments, and Safety routers at /v1 and /api/v1
+# Mount Runs, Analytics, Alerts, Projects, Datasets, Experiments, Safety, and Failures routers at /v1 and /api/v1
 for prefix in ("/v1", "/api/v1"):
     app.include_router(runs_router, prefix=prefix)
     app.include_router(analytics_router, prefix=prefix)
@@ -65,6 +66,7 @@ for prefix in ("/v1", "/api/v1"):
     app.include_router(datasets_router, prefix=prefix)
     app.include_router(experiments_router, prefix=prefix)
     app.include_router(safety_router, prefix=prefix)
+    app.include_router(failures_router, prefix=prefix)
 
 
 

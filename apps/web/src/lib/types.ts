@@ -631,3 +631,128 @@ export interface SafetyOverview {
   >;
 }
 
+// ==========================================
+// Phase 6: Failure Intelligence & Clusters
+// ==========================================
+
+export interface FailureEvent {
+  id: string;
+  project_id: string;
+  source_type: "run" | "span" | "experiment_result" | "safety_test_result" | string;
+  source_id: string;
+  run_id: string | null;
+  trace_id: string | null;
+  agent_name: string | null;
+  agent_version: string | null;
+  model_name: string | null;
+  model_provider: string | null;
+  failure_category: "runtime_error" | "eval_failure" | "safety_failure" | "tool_error" | "timeout" | "unknown" | string;
+  severity: "critical" | "high" | "medium" | "low" | string;
+  error_summary: string;
+  normalized_text: string;
+  embedding_status: "pending" | "completed" | "failed" | "skipped" | string;
+  cluster_id: string | null;
+  occurred_at: string;
+  created_at: string;
+  failure_metadata: Record<string, any>;
+}
+
+export interface FailureEventListResponse {
+  items: FailureEvent[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface ClusterStatusChange {
+  id: string;
+  cluster_id: string;
+  previous_status: string;
+  new_status: string;
+  resolution_notes: string | null;
+  changed_at: string;
+}
+
+export interface FailureClusterSummary {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  dominant_category: string;
+  severity_distribution: Record<string, number>;
+  event_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  representative_summary: string | null;
+  affected_agents: string[];
+  affected_models: string[];
+  representative_traces: Array<{ run_id: string; trace_id: string }>;
+  status: "new" | "investigating" | "resolved" | "ignored" | string;
+  resolution_notes: string | null;
+  algorithm_version: string;
+  similarity_threshold: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FailureClusterDetail extends FailureClusterSummary {
+  recent_events: FailureEvent[];
+  status_history: ClusterStatusChange[];
+}
+
+export interface FailureClusterListResponse {
+  items: FailureClusterSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface SimilarFailureItem {
+  event_id: string;
+  error_summary: string;
+  failure_category: string;
+  severity: string;
+  agent_name: string | null;
+  agent_version: string | null;
+  model_name: string | null;
+  similarity_score: number;
+  cluster_id: string | null;
+  occurred_at: string;
+}
+
+export interface SimilarFailureSearchResponse {
+  results: SimilarFailureItem[];
+  total: number;
+  search_method: "vector_similarity" | "lexical_fallback" | "none" | string;
+  threshold: number;
+}
+
+export interface ClusteringJobResponse {
+  status: string;
+  clusters_created: number;
+  clusters_updated: number;
+  events_assigned: number;
+  events_unassigned: number;
+  algorithm_version: string;
+}
+
+export interface FailureSyncResponse {
+  scanned: number;
+  created: number;
+  skipped: number;
+  status: string;
+}
+
+export interface FailureOverviewMetrics {
+  total_failure_events: number;
+  total_clusters: number;
+  clusters_by_status: Record<string, number>;
+  events_by_severity: Record<string, number>;
+  top_failure_categories: Array<{ category: string; count: number }>;
+  top_affected_agents: Array<{ agent_name: string; count: number }>;
+  embedding_provider: string;
+  vector_search_available: boolean;
+}
+

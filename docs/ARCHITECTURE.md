@@ -345,22 +345,130 @@ Safety campaigns are aligned by stable test case identifier (`stable_case_id`):
 
 ---
 
-## 7. Authentication & Tenant Isolation
+## 7. Phase 6: Failure Intelligence & Semantic Clustering
+
+### 7.1 Architecture & Failure Event Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Sources["Failure Sources"]
+        R["Failed Runs (status=error)"]
+        S["Failed Spans (status=error)"]
+        E["Failed Experiments (status=failed)"]
+        SF["Failed Safety Tests (passed=false)"]
+    end
+
+    subgraph Pipeline["Ingestion & Redaction Pipeline"]
+        N["Failure Event Normalizer"]
+        Redact["Redaction Engine (PII, Creds, IPs, Paths)"]
+        Hash["SHA-256 Content Hash"]
+        Dedup["Idempotent Source Deduplication"]
+    end
+
+    subgraph EmbeddingTier["Pluggable Embedding Tier"]
+        Prov{"Provider Configured?"}
+        OpenAI["OpenAI text-embedding-3-small"]
+        Fake["Deterministic Fake Embedding (Dev/Test)"]
+        Lex["Lexical Fallback (Token Jaccard)"]
+        Cache["Content-Hash Vector Cache"]
+    end
+
+    subgraph Storage["Storage Tier"]
+        PGV[("PostgreSQL 16 + pgvector")]
+        FE["failure_events table (Vector 64)"]
+        FC["failure_clusters table"]
+        FCSC["cluster_status_changes audit log"]
+    end
+
+    subgraph ClusteringEngine["Clustering Engine"]
+        Alg["Threshold-Based Incremental Clustering (threshold_v1)"]
+        Cosine["Cosine Distance (<=>)"]
+        Centroid["Centroid Vector Tracking"]
+    end
+
+    R --> N
+    S --> N
+    E --> N
+    SF --> N
+    N --> Redact
+    Redact --> Hash
+    Hash --> Dedup
+    Dedup --> FE
+    FE --> Prov
+    Prov -->|Yes: openai| OpenAI
+    Prov -->|Yes: fake| Fake
+    Prov -->|No| Lex
+    OpenAI --> Cache
+    Fake --> Cache
+    Cache --> FE
+    FE --> Alg
+    Alg --> Cosine
+    Cosine --> Centroid
+    Centroid --> FC
+    FC --> FCSC
+```
+
+### 7.2 Redaction and Privacy Guarantees
+
+All failure text passes through `app.failures.redaction` prior to persistence or embedding generation:
+- **Credentials & API Keys:** Regex matching `api_key`, `token`, `secret`, `bearer`, `authorization` masks values with `[REDACTED]`.
+- **URLs:** User credentials (`https://user:pass@host`) and sensitive query parameters are masked with `[CREDENTIALS_REDACTED]` and `[PARAMS_REDACTED]`.
+- **Network Identifiers:** IPv4 addresses and ports are masked with `[IP_REDACTED]`.
+- **Personal Identifiers:** RFC-5322 email patterns are replaced with `[EMAIL_REDACTED]`; US phone patterns with `[PHONE_REDACTED]`; SSN patterns with `[SSN_REDACTED]`.
+- **File System Paths:** Windows paths (`C:\...`) and POSIX paths (`/home/...`, `/tmp/...`) are sanitized to `[PATH_REDACTED]`.
+- **Normalization:** Error line numbers (`line 42` -> `line N`) and hex memory addresses (`0x7fff5fbff820` -> `0xADDR`) are normalized to prevent trivial text differences from creating artificial semantic distance.
+
+### 7.3 Pluggable Embedding Tier & Content-Hash Deduplication
+
+The embedding layer (`app.failures.embedding`) provides a provider-neutral interface:
+1. **Configurable Providers:**
+   - `openai`: Uses `text-embedding-3-small` with bounded batching, exponential backoff, rate limit handling, and timeout isolation.
+   - `fake`: Deterministic unit vectors derived from cryptographic hashes for fast, zero-external-dependency local testing.
+   - `""` (Empty): Disables vector embeddings gracefully. The platform automatically falls back to token-level Jaccard lexical similarity with clear labelling.
+2. **Content-Hash Deduplication:**
+   Each normalized failure summary is hashed via SHA-256 (`content_hash`). If another event with the same content hash has already been embedded, its vector is reused immediately without making redundant external embedding calls.
+
+### 7.4 PostgreSQL pgvector Integration
+
+- **Extension:** Enabled via `CREATE EXTENSION IF NOT EXISTS vector;` in migration `005_failure_intelligence.py`.
+- **Vector Column:** Uses `pgvector.sqlalchemy.Vector(dimensions)` on `failure_events.embedding` and `failure_clusters.centroid_embedding`.
+- **Dialect Portability:** In SQLite-based test environments, the column cleanly maps to an array-compatible representation, allowing unit tests to run with zero dependencies while production uses native PostgreSQL pgvector indexing.
+
+### 7.5 Threshold-Based Incremental Clustering Algorithm (`threshold_v1`)
+
+- **Strategy:** Single-pass incremental clustering. Unassigned failure events are compared against existing cluster centroids using cosine similarity. If the maximum similarity exceeds `CLUSTERING_SIMILARITY_THRESHOLD` (default $0.85$), the event joins the existing cluster.
+- **Minimum Cluster Size:** Single, isolated failure events that do not meet `CLUSTERING_MIN_CLUSTER_SIZE` (default $2$) remain unassigned rather than cluttering the triage queue.
+- **Deterministic Cluster Title:** Generated using frequency analysis of common exception classes (`TypeError`, `ConnectionTimeout`, etc.) across member events.
+- **Limitations:** Centroids represent the first cluster representative; long-term incremental additions may experience slight centroid drift. Complete re-clustering recomputes assignments cleanly.
+
+### 7.6 Cluster Intelligence, Status Transitions, and Audit Trail
+
+Clusters support four lifecycle states:
+- `new`: Newly formed cluster pending developer triage.
+- `investigating`: Active investigation; developer has acknowledged the failure pattern.
+- `resolved`: Fix or patch deployed.
+- `ignored`: Known or non-actionable issue.
+
+Every status transition is logged to `cluster_status_changes` with previous status, new status, developer resolution notes, and UTC timestamp, providing an audit-ready timeline.
+
+---
+
+## 8. Authentication & Tenant Isolation
 
 - **Ingestion Security:** All write operations require a valid `X-API-Key` matching an active SHA-256 hash in `api_keys`.
-- **Tenant Isolation:** A project API key can only write to or query runs, datasets, test cases, experiments, and safety campaigns belonging to that key's assigned `project_id`. Attempting to read another project's resource returns `HTTP 404 Not Found` or `HTTP 403 Forbidden`.
+- **Tenant Isolation:** A project API key can only write to or query runs, datasets, test cases, experiments, safety campaigns, failure events, and clusters belonging to that key's assigned `project_id`. Attempting to read another project's resource returns `HTTP 404 Not Found` or `HTTP 403 Forbidden`.
 - **Browser Development Safe Fallback:** For local dashboard exploration without hardcoding secrets in client-side JavaScript, read APIs safely fall back to the primary project in development mode.
 - **Upload Hardening:** Uploaded files (CSV and JSON) are strictly verified for UTF-8 encoding, size limits ($\le 5\text{MB}$), and case count limits ($\le 500\text{ cases}$). No raw files are saved to disk; all data is ingested transactionally into PostgreSQL.
 
 ---
 
-## 8. Design Decisions & Current Limitations
+## 9. Design Decisions & Current Limitations
 
 1. **In-Memory SQLite vs. Live PostgreSQL:**
    - Unit and integration tests run entirely against in-memory SQLite for instant, zero-dependency CI execution.
-   - Production schema uses PostgreSQL 16 with native `JSONB` and timezone-aware timestamps. Migrations `001` through `004_safety_module.py` are configured and ready for live PostgreSQL deployment.
+   - Production schema uses PostgreSQL 16 with native `JSONB`, pgvector extension, and timezone-aware timestamps. Migrations `001` through `005_failure_intelligence.py` are configured for live PostgreSQL deployment.
 2. **Local Bounded Async Runner vs. Distributed Workers:**
-   - Phase 3, 4, and 5 implement asynchronous execution pipelines (`asyncio.create_task`).
+   - Phase 3, 4, 5, and 6 implement asynchronous execution pipelines (`asyncio.create_task`).
    - For recurring background cron monitoring and high-volume experiment execution, future phases will introduce a dedicated Celery/Redis scheduler.
 3. **Deterministic Percentiles Across Databases:**
    - `AnalyticsService` computes linear interpolated percentiles in Python over indexed query results, guaranteeing consistent numerical behavior across local development and production.
