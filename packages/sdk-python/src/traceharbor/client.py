@@ -51,6 +51,7 @@ class TraceHarborClient:
         self.api_key = api_key or os.environ.get("TRACEHARBOR_API_KEY", "")
         self.endpoint = (endpoint or os.environ.get("TRACEHARBOR_ENDPOINT", "http://127.0.0.1:8000")).rstrip("/")
         self.truncate_limit = truncate_limit
+        self.transport: HttpTransport | None = None
 
         if not self.api_key and self.enabled:
             # Remain enabled but defer transport creation until init(api_key=...) is called

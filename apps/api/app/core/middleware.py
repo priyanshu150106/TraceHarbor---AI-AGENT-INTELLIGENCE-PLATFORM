@@ -11,16 +11,21 @@ The correlation ID is:
 4. Returned in the ``X-Request-ID`` response header
 """
 
+import logging
 import uuid
 
 import structlog
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
+
+from app.core.config import settings
+
+logger = logging.getLogger("traceharbor.middleware")
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
-    """Middleware that assigns and propagates a request correlation ID."""
+    """Middleware that assigns and propagates a request correlation ID and sanitizes unhandled errors."""
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -35,7 +40,25 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         # Store on request state so handlers can access it
         request.state.request_id = request_id
 
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            logger.exception(
+                "Unhandled exception in request %s %s [request_id=%s]: %s",
+                request.method,
+                request.url.path,
+                request_id,
+                exc,
+            )
+            detail = str(exc) if settings.debug else "Internal server error"
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": detail,
+                    "request_id": request_id,
+                },
+                headers={"X-Request-ID": request_id},
+            )
 
         # Echo back in response header
         response.headers["X-Request-ID"] = request_id

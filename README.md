@@ -8,8 +8,17 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-121%20passed-brightgreen.svg)](#10-testing--quality-assurance)
+[![Tests](https://img.shields.io/badge/tests-123%20passed-brightgreen.svg)](#10-testing--quality-assurance)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+---
+
+## Technical Documentation Suite
+
+- 📖 **[System Architecture (ARCHITECTURE.md)](docs/ARCHITECTURE.md)**: End-to-end data pipelines, Mermaid sequence diagrams, DAG validation, and database schemas.
+- 🛡️ **[Security Architecture & Threat Model (SECURITY.md)](docs/SECURITY.md)**: Threat model matrix, SSRF protection, tenant isolation rules, and PII/token redaction guarantees.
+- 💻 **[Local Development & Setup Guide (DEVELOPMENT.md)](docs/DEVELOPMENT.md)**: Zero-dependency local setup, PostgreSQL/pgvector mode, test commands, and Alembic workflows.
+- 🎬 **[Technical Demonstration Guide (DEMO.md)](docs/DEMO.md)**: Step-by-step evaluator walkthrough, automated 60-second test script, and UI tour.
 
 ---
 
@@ -65,6 +74,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Phase 5: AI Safety & Red-Teaming** | **Implemented & Tested** | 7 threat categories, 8 deterministic evaluators, canary detection, safe boundary, campaigns, regression diff, and `/safety` UI |
 | **Phase 6: Failure Intelligence & Semantic Clustering** | **Implemented & Tested** | Normalized failure events, redaction engine, pluggable embeddings (fake/openai), PostgreSQL pgvector, threshold clustering, status audit trail, and Web UI |
 | **Phase 7: Production Readiness & Reliability Engineering** | **Implemented & Tested** | Request correlation ID middleware, separate liveness/readiness probes, background task manager with retries, real PostgreSQL/pgvector integration suite, and hardened CI containers |
+| **Phase 8: Release Candidate, Deployment Readiness & Portfolio Polish** | **Implemented & Verified** | Full release audit, P1 error sanitization & SDK transport fix, multi-stage Dockerfiles, root Docker Compose stack, demo walkthrough script, and complete technical docs suite |
 
 ---
 
@@ -488,12 +498,12 @@ TraceHarbor automatically extracts, redacts, normalizes, and groups recurring AI
 
 ## 11. Testing & Quality Assurance
 
-### 11.1 Backend Test Suite (112 Unit & API Tests)
+### 11.1 Backend Test Suite (113 Unit & API Tests)
 ```powershell
 python -m pytest apps/api/app/tests -v -m "not integration"
 ```
 Covers:
-- **Production Readiness & Reliability (Phase 7):** Request correlation ID middleware (`X-Request-ID` generation & propagation), liveness probe (`/healthz`), readiness probe (`/readyz`) with DB health check, production-mode tenant auth enforcement (`resolve_project_id` rejects unauthenticated in `debug=False`), startup configuration safety warnings, SSRF URL validator rules, BackgroundTaskManager in-process async execution, bounded exponential backoff retries, async clustering & failure sync, task status/cancellation API (`/v1/tasks`), and comprehensive End-to-End workflow verification (`test_e2e_workflow.py`).
+- **Production Readiness & Release Candidate (Phases 7 & 8):** Request correlation ID middleware (`X-Request-ID` generation & propagation), production unhandled exception sanitization (obscuring internal traces while preserving correlation ID), liveness probe (`/healthz`), readiness probe (`/readyz`) with DB health check, production-mode tenant auth enforcement (`resolve_project_id` rejects unauthenticated in `debug=False`), startup configuration safety warnings, SSRF URL validator rules, BackgroundTaskManager in-process async execution, bounded exponential backoff retries, async clustering & failure sync, task status/cancellation API (`/v1/tasks`), and comprehensive End-to-End workflow verification (`test_e2e_workflow.py`).
 - **Failure Intelligence & Clustering (Phase 6):** PII and credential redaction, error text normalization, normalizers across runs/spans/experiments/safety, FakeEmbeddingProvider determinism and validation, cosine similarity boundaries, lexical similarity fallback, single-pass clustering, cluster metadata aggregation, idempotent sync, cluster status transitions with audit logs, similarity search endpoints, and project tenant isolation.
 - **Safety Evaluators & Redaction:** secret canary detection, required refusal checks, forbidden pattern detection, tool policy enforcement, schema validation, multi-rule policy compliance, prompt injection resistance, LLM safety judge mock fallback, and canary redaction.
 - **Safety Runner, Campaigns & Regression:** agent isolation boundary, timeouts, input/output truncation, exception safety, campaign persistence, baseline vs candidate regression comparison, tenant isolation, and alert rule metric computation.
@@ -517,17 +527,17 @@ Covers:
 - Multi-project database-level tenant isolation boundaries.
 - *Graceful skipping:* When PostgreSQL is not running locally (e.g. without Docker Desktop), integration tests skip cleanly with informative messages. In GitHub Actions CI, tests run against a dedicated `pgvector/pgvector:pg16` service container.
 
-### 11.3 Python SDK Test Suite (9 Tests)
+### 11.3 Python SDK Test Suite (10 Tests)
 ```powershell
 python -m pytest packages/sdk-python/tests -v
 ```
-Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, and transport failure isolation.
+Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, transport failure isolation, and disabled kill-switch initialization.
 
-### 11.4 Combined Automated Test Execution (121 Tests Total)
+### 11.4 Combined Automated Test Execution (123 Tests Total)
 ```powershell
 python -m pytest apps/api/app/tests packages/sdk-python/tests -v
 ```
-Result: **121 passed, 11 skipped (PG integration), 0 failures** in ~11 seconds.
+Result: **123 passed, 11 skipped (PG integration), 0 failures** in ~11 seconds.
 
 ### 11.5 Python Code Style & Linting
 ```powershell
@@ -579,13 +589,19 @@ TraceHarbor/
 ├── datasets/                      # Reference golden & safety red-team benchmark datasets (JSON & CSV)
 ├── demo-agents/                   # Standalone agent implementations (Customer Support Agent)
 ├── docs/
-│   └── ARCHITECTURE.md            # In-depth architectural designs, Mermaid sequences & reliability specifications
+│   ├── ARCHITECTURE.md            # In-depth architectural designs, Mermaid sequences & reliability specifications
+│   ├── SECURITY.md                # Threat model matrix, SSRF protection, tenant boundaries, and redaction guarantees
+│   ├── DEVELOPMENT.md             # Local zero-dependency setup, PostgreSQL/pgvector mode, testing, and migrations
+│   └── DEMO.md                    # Technical demonstration guide & evaluator walkthrough
 ├── infra/
-│   ├── docker-compose.yml         # Local infrastructure: PostgreSQL 16 (pgvector) & Redis 7 (bound to 127.0.0.1)
+│   ├── docker-compose.yml         # Development infrastructure: PostgreSQL 16 (pgvector) & Redis 7 (bound to 127.0.0.1)
 │   └── initdb/
 │       └── 01-init.sql            # Automated container init: pgvector extension & traceharbor_test DB
 ├── packages/
-│   └── sdk-python/                # TraceHarbor Python Tracing SDK library (9 passing tests)
+│   └── sdk-python/                # TraceHarbor Python Tracing SDK library (10 passing tests)
+├── scripts/
+│   └── demo_walkthrough.py        # End-to-end automated platform verification walkthrough
+├── docker-compose.yml             # Root full-stack orchestration: PostgreSQL 16 (pgvector), Redis, API, and Next.js UI
 ├── .env.example                   # Environment variables template (includes POSTGRES_TEST_URL)
 ├── .gitignore                     # Git ignore rules for Python, Node, and environments
 ├── README.md                      # Comprehensive project documentation
@@ -605,6 +621,7 @@ TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 5:** AI Safety & Red-Teaming Module *(Completed & Tested)*
 - **Phase 6:** Failure Intelligence & Semantic Clustering via pgvector *(Completed & Tested)*
 - **Phase 7:** Production Readiness & Reliability Engineering *(Completed & Tested)*
+- **Phase 8:** Release Candidate, Deployment Readiness & Portfolio Polish *(Completed & Verified)*
 
 ---
 

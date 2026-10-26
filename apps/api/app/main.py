@@ -6,9 +6,11 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 from app.api.v1.alerts import router as alerts_router
 from app.api.v1.analytics import router as analytics_router
@@ -101,6 +103,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Global catch-all exception handler.
+    Sanitizes errors so database connection strings, credentials, or stack traces
+    are never leaked to callers. Logs full exception details internally with correlation ID.
+    """
+    if isinstance(exc, StarletteHTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=getattr(exc, "headers", None) or {},
+        )
+
+    request_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or "unknown"
+    logger.exception(
+        "Unhandled exception processing %s %s [request_id=%s]: %s",
+        request.method,
+        request.url.path,
+        request_id,
+        exc,
+    )
+
+    detail = str(exc) if settings.debug else "Internal server error"
+    return JSONResponse(
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": detail,
+            "request_id": request_id,
+        },
+        headers={"X-Request-ID": request_id} if request_id != "unknown" else {},
+    )
 
 # Mount Health router at root level and at /api/v1
 app.include_router(health_router)

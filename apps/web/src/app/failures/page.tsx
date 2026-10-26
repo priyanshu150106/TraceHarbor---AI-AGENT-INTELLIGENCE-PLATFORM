@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { fetchFailureEvents, fetchFailureOverview, syncFailureEvents } from "@/lib/api";
@@ -22,7 +22,7 @@ export default function FailuresPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -45,11 +45,11 @@ export default function FailuresPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, severityFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
     loadData();
-  }, [page, severityFilter, categoryFilter]);
+  }, [loadData]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

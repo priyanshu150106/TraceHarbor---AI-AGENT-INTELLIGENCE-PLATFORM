@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { searchSimilarFailures } from "@/lib/api";
@@ -21,38 +21,45 @@ function SimilarFailuresSearchContent() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!queryText.trim() && !eventId.trim()) {
-      setError("Please provide either an error text query or a failure event ID.");
-      return;
-    }
+  const executeSearch = useCallback(
+    async (targetQuery: string, targetEventId: string, currentThreshold: number) => {
+      if (!targetQuery.trim() && !targetEventId.trim()) {
+        setError("Please provide either an error text query or a failure event ID.");
+        return;
+      }
 
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await searchSimilarFailures({
-        query_text: queryText.trim() || undefined,
-        event_id: eventId.trim() || undefined,
-        threshold,
-        limit: 25,
-      });
-      setResults(res.results);
-      setSearchMethod(res.search_method);
-      setSearched(true);
-    } catch (err: any) {
-      setError(err.message || "Similarity search failed.");
-    } finally {
-      setLoading(false);
-    }
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await searchSimilarFailures({
+          query_text: targetQuery.trim() || undefined,
+          event_id: targetEventId.trim() || undefined,
+          threshold: currentThreshold,
+          limit: 25,
+        });
+        setResults(res.results);
+        setSearchMethod(res.search_method);
+        setSearched(true);
+      } catch (err: any) {
+        setError(err.message || "Similarity search failed.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    executeSearch(queryText, eventId, threshold);
   };
 
   useEffect(() => {
     if (initialEventId) {
       setEventId(initialEventId);
-      handleSearch();
+      executeSearch("", initialEventId, threshold);
     }
-  }, [initialEventId]);
+  }, [initialEventId, executeSearch, threshold]);
 
   return (
     <main className="flex-1 overflow-y-auto p-6 space-y-6">

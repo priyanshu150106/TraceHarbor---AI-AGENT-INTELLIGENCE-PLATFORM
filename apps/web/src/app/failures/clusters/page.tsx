@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { fetchFailureClusters, triggerClusteringJob, updateClusterStatus } from "@/lib/api";
@@ -26,7 +26,7 @@ export default function FailureClustersPage() {
   const [minClusterSize, setMinClusterSize] = useState(2);
   const [jobResult, setJobResult] = useState<string | null>(null);
 
-  const loadClusters = async () => {
+  const loadClusters = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -45,11 +45,11 @@ export default function FailureClustersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, statusFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
     loadClusters();
-  }, [page, statusFilter, categoryFilter]);
+  }, [loadClusters]);
 
   const handleRunClustering = async () => {
     setRunningJob(true);

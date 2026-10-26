@@ -1,0 +1,106 @@
+# ==============================================================================
+# TraceHarbor — Release Candidate Docker Compose Orchestration
+# ==============================================================================
+# Services:
+#   - postgres: PostgreSQL 16 with pgvector extension
+#   - redis: Redis 7 for background job queues and caching
+#   - api: TraceHarbor FastAPI backend service
+#   - web: TraceHarbor Next.js dashboard UI
+#
+# Usage:
+#   docker compose up --build -d
+#   docker compose ps
+#   docker compose logs -f api
+# ==============================================================================
+
+services:
+  # ---------- PostgreSQL + pgvector ----------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: traceharbor-postgres
+    restart: unless-stopped
+    ports:
+      # Bound to localhost only — never exposed externally
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-th}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-traceharbor}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-th} -d ${POSTGRES_DB:-traceharbor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------- Redis ----------
+  redis:
+    image: redis:7-alpine
+    container_name: traceharbor-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: redis-server --appendonly yes
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------- TraceHarbor API Backend ----------
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: traceharbor-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-th}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-traceharbor}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-change_me_generate_a_random_secret}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fake}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------- TraceHarbor Web Frontend ----------
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: traceharbor-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local

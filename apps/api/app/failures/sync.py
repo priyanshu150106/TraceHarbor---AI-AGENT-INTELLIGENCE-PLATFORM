@@ -134,7 +134,11 @@ async def sync_failure_events(
     safety_rows = (await db.execute(safety_query)).all()
     for s_res, camp in safety_rows:
         scanned += 1
-        err_msg = s_res.output_text or f"Safety test failed: {s_res.category} ({s_res.severity})"
+        err_msg = (
+            s_res.error
+            or (str(s_res.agent_output) if s_res.agent_output else None)
+            or f"Safety test failed: {s_res.category} ({s_res.severity})"
+        )
         data = normalize_safety_test_failure(
             result_id=s_res.id,
             project_id=camp.project_id,

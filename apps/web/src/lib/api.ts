@@ -60,16 +60,59 @@ class ApiError extends Error {
   }
 }
 
+export function getStoredApiKey(): string | null {
+  if (typeof window !== "undefined") {
+    try {
+      return localStorage.getItem("th_api_key");
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function setStoredApiKey(key: string): void {
+  if (typeof window !== "undefined") {
+    try {
+      if (key && key.trim()) {
+        localStorage.setItem("th_api_key", key.trim());
+      } else {
+        localStorage.removeItem("th_api_key");
+      }
+    } catch {
+      // Ignore private-browsing storage exceptions
+    }
+  }
+}
+
+export function clearStoredApiKey(): void {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("th_api_key");
+    } catch {
+      // Ignore
+    }
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const apiKey = getStoredApiKey() || process.env.NEXT_PUBLIC_API_KEY || null;
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...((options.headers as Record<string, string>) || {}),
+  };
+
+  if (apiKey && !headers["X-API-Key"] && !headers["x-api-key"]) {
+    headers["X-API-Key"] = apiKey;
+  }
+
   try {
     const res = await fetch(url, {
       ...options,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-      },
+      headers,
       cache: "no-store",
     });
 

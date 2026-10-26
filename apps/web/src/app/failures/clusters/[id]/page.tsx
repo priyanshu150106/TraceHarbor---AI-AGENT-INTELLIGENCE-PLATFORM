@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { fetchFailureClusterDetail, updateClusterStatus } from "@/lib/api";
@@ -22,7 +22,7 @@ export default function FailureClusterDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
-  const loadDetail = async () => {
+  const loadDetail = useCallback(async () => {
     if (!clusterId) return;
     setLoading(true);
     setError(null);
@@ -36,11 +36,11 @@ export default function FailureClusterDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clusterId]);
 
   useEffect(() => {
     loadDetail();
-  }, [clusterId]);
+  }, [loadDetail]);
 
   const handleStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

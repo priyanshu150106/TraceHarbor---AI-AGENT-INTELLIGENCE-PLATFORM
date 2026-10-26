@@ -113,3 +113,26 @@ def test_startup_configuration_validation_runs() -> None:
     """Verify startup validation runs without throwing exceptions on default config."""
     # Should not raise exception
     _validate_startup_configuration()
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_sanitization(client: AsyncClient) -> None:
+    """Verify that unhandled exceptions do not leak stack traces or secrets in non-debug mode."""
+    from app.main import app
+
+    @app.get("/test-unhandled-crash")
+    async def crash_endpoint() -> None:
+        raise RuntimeError("database credentials password=supersecret_leak_12345")
+
+    original_debug = settings.debug
+    try:
+        settings.debug = False
+        res = await client.get("/test-unhandled-crash", headers={"X-Request-ID": "test-crash-trace-1"})
+        assert res.status_code == 500
+        data = res.json()
+        assert data["detail"] == "Internal server error"
+        assert "supersecret_leak_12345" not in res.text
+        assert data["request_id"] == "test-crash-trace-1"
+        assert res.headers.get("x-request-id") == "test-crash-trace-1"
+    finally:
+        settings.debug = original_debug

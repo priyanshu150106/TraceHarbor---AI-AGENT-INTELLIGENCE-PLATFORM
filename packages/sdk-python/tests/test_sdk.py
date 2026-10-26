@@ -222,3 +222,21 @@ def test_telemetry_isolation_on_network_failure() -> None:
     output = business_logic()
     assert output == "critical_business_output"
     client.shutdown(timeout=0.1)
+
+
+def test_disabled_client_lifecycle_and_reconfiguration() -> None:
+    """Verify client with enabled=False has None transport and can reconfigure safely."""
+    client = TraceHarborClient(enabled=False)
+    assert client.enabled is False
+    assert client.transport is None
+
+    # Tracing should be an instant no-op and preserve function output
+    @client.trace(name="disabled_test_fn", run=True)
+    def compute(val: int) -> int:
+        return val * 10
+
+    assert compute(5) == 50
+
+    # Reconfiguring should not crash with AttributeError
+    client.reconfigure(api_key="new_key", enabled=False)
+    assert client.transport is None
