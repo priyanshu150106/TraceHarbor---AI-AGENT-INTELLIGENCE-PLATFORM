@@ -473,4 +473,37 @@ Every status transition is logged to `cluster_status_changes` with previous stat
 3. **Deterministic Percentiles Across Databases:**
    - `AnalyticsService` computes linear interpolated percentiles in Python over indexed query results, guaranteeing consistent numerical behavior across local development and production.
 
+---
+
+## 10. Phase 7: Production Readiness & Reliability Engineering
+
+### 10.1 Request Correlation & Distributed Tracing
+- **Middleware:** `CorrelationIdMiddleware` assigns a UUID4 correlation ID to every incoming HTTP request.
+- **Propagation:** Respects client-provided `X-Request-ID` headers for end-to-end distributed trace propagation.
+- **Structured Logging:** Binds `request_id` to structlog context variables so all logs emitted during request processing carry the correlation ID.
+- **Response Headers:** Always returns `X-Request-ID` in the response headers.
+
+### 10.2 Orchestration Health & Probes
+- `/health`: Human-readable status overview for developers and dashboards.
+- `/healthz`: Liveness probe for container orchestrators (Kubernetes, ECS, Docker). Returns 200 immediately without hitting dependencies.
+- `/readyz`: Readiness probe verifying essential dependencies (PostgreSQL connectivity). Returns HTTP 503 if the database is unreachable, preventing traffic routing to unready replicas.
+
+### 10.3 Background Task Engine (`BackgroundTaskManager`)
+- **Lifecycle Tracking:** Tasks transition through `queued` -> `running` -> `completed` / `failed` / `cancelled`.
+- **Bounded Retries:** Automatic retries with exponential backoff ($1\text{s}, 2\text{s}, 4\text{s}\dots$ capped at $10\text{s}$) on transient failures.
+- **Asynchronous Execution:** Clustering jobs (`/v1/failures/clusters/run`) and failure syncs (`/v1/failures/sync`) support `run_in_background=True`, returning a `task_id` immediately.
+- **Inspection & Control:** Task status, progress, and results are queryable via `GET /v1/tasks/{id}` and cancellable via `POST /v1/tasks/{id}/cancel`.
+- **Memory Bounds:** Automatically evicts terminal task records when exceeding history capacity (`MAX_RETAINED_TASKS = 500`).
+- **Graceful Shutdown:** FastAPI lifespan hooks into `task_manager.shutdown()` to cleanly drain and cancel in-flight tasks during SIGTERM.
+
+### 10.4 Security & Production Defaults
+- **Production Tenancy Guard:** In production mode (`debug=False`), unauthenticated requests without an explicit `project_id` or `X-API-Key` return `HTTP 401 Unauthorized`. Development-only fallback to the primary project is strictly gated behind `debug=True`.
+- **Network Isolation:** Development Docker Compose binds all exposed database and cache ports (PostgreSQL 5432, Redis 6379) strictly to `127.0.0.1` to prevent accidental LAN/WAN exposure.
+- **Startup Configuration Validation:** Emits explicit warnings at startup if insecure placeholder secrets (default `JWT_SECRET`, default database credentials, CORS wildcard `*`) are active in production.
+- **SSRF URL Hardening:** Webhook notifications validate DNS resolution to prohibit loopback, private RFC-1918 subnets, cloud metadata IPs (`169.254.169.254`), and non-HTTP protocols.
+
+### 10.5 Dual-Tier Integration Testing
+- **Unit Tier (In-Memory):** 112 unit tests execute against in-memory SQLite with zero external dependencies in $\approx 10\text{s}$.
+- **Integration Tier (Real PostgreSQL + pgvector):** Dedicated integration suite in `app/tests/integration/` tests real PostgreSQL 16 migrations (001–005), 15 ORM models, cascade constraints, tenant isolation, and pgvector cosine distance operators (`<=>`). Automatically skips gracefully when Docker/PostgreSQL is unavailable locally, and runs in GitHub Actions CI with a `pgvector/pgvector:pg16` service container.
+
 

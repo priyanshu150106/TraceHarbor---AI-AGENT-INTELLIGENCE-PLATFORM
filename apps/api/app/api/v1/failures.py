@@ -12,6 +12,7 @@ Phase 6: Provides REST endpoints for:
 import math
 import uuid
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, func, select
@@ -19,7 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import resolve_project_id
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import async_session_factory, get_db
+from app.core.tasks import task_manager
 from app.failures.clustering import run_clustering_for_project, search_similar_failures
 from app.failures.embedding import get_embedding_provider
 from app.failures.sync import sync_failure_events
@@ -345,6 +347,28 @@ async def trigger_clustering_job(
     min_size = payload.min_cluster_size or settings.clustering_min_cluster_size
     max_cand = payload.max_candidates or settings.clustering_max_candidates
 
+    if payload.run_in_background:
+        async def _bg_run_clustering() -> dict[str, Any]:
+            async with async_session_factory() as session:
+                return await run_clustering_for_project(
+                    db=session,
+                    project_id=project_id,
+                    threshold=threshold,
+                    min_cluster_size=min_size,
+                    max_candidates=max_cand,
+                )
+
+        task_id = task_manager.submit(
+            "clustering",
+            _bg_run_clustering,
+            project_id=project_id,
+        )
+        return ClusteringJobResponse(
+            status="queued",
+            algorithm_version=settings.app_version,
+            task_id=task_id,
+        )
+
     res = await run_clustering_for_project(
         db=db,
         project_id=project_id,
@@ -436,6 +460,25 @@ async def sync_failures_endpoint(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Project ID could not be determined.",
+        )
+
+    if payload.run_in_background:
+        async def _bg_sync_failures() -> dict[str, Any]:
+            async with async_session_factory() as session:
+                return await sync_failure_events(
+                    db=session,
+                    project_id=project_id,
+                    auto_embed=payload.auto_embed,
+                )
+
+        task_id = task_manager.submit(
+            "failure_sync",
+            _bg_sync_failures,
+            project_id=project_id,
+        )
+        return FailureSyncResponse(
+            status="queued",
+            task_id=task_id,
         )
 
     res = await sync_failure_events(

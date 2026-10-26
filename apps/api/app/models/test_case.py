@@ -27,6 +27,8 @@ class TestCase(Base):
     and evaluation criteria within a dataset.
     """
 
+    __test__ = False  # Prevent pytest from treating this ORM model as a test suite
+
     __tablename__ = "test_cases"
 
     id: Mapped[uuid.UUID] = mapped_column(

@@ -8,7 +8,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen.svg)](#10-testing--quality-assurance)
+[![Tests](https://img.shields.io/badge/tests-121%20passed-brightgreen.svg)](#10-testing--quality-assurance)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
@@ -64,6 +64,7 @@ TraceHarbor is an open-source AI Agent Observability, Evaluation, and Security P
 | **Phase 4: Web UI for Analytics & Alerts**| **Implemented & Tested** | Next.js interactive dashboards `/analytics` and `/alerts` |
 | **Phase 5: AI Safety & Red-Teaming** | **Implemented & Tested** | 7 threat categories, 8 deterministic evaluators, canary detection, safe boundary, campaigns, regression diff, and `/safety` UI |
 | **Phase 6: Failure Intelligence & Semantic Clustering** | **Implemented & Tested** | Normalized failure events, redaction engine, pluggable embeddings (fake/openai), PostgreSQL pgvector, threshold clustering, status audit trail, and Web UI |
+| **Phase 7: Production Readiness & Reliability Engineering** | **Implemented & Tested** | Request correlation ID middleware, separate liveness/readiness probes, background task manager with retries, real PostgreSQL/pgvector integration suite, and hardened CI containers |
 
 ---
 
@@ -450,18 +451,49 @@ TraceHarbor automatically extracts, redacts, normalizes, and groups recurring AI
 | `GET` | `/v1/failures/clusters` | List semantic clusters with dominant category, severity distribution, and status filters |
 | `GET` | `/v1/failures/clusters/{id}` | Cluster detail with representative traces, member events, and status audit trail |
 | `PATCH`| `/v1/failures/clusters/{id}/status` | Update cluster status (`new`, `investigating`, `resolved`, `ignored`) with resolution notes |
-| `POST` | `/v1/failures/clusters/run` | Execute bounded clustering job against embedded failures |
+| `POST` | `/v1/failures/clusters/run` | Execute bounded clustering job against embedded failures (supports background mode) |
 | `POST` | `/v1/failures/sync` | Idempotently scan and normalize failure events from existing runs, spans, and benchmarks |
 
 ---
 
-## 10. Testing & Quality Assurance
+## 10. Production Readiness & Reliability Engineering (Phase 7)
 
-### 10.1 Backend Test Suite (97 Tests)
+### 10.1 System Reliability, Background Tasks & Distributed Tracing
+- **Request Correlation ID Middleware:** Every HTTP request is assigned a UUID4 correlation ID via `CorrelationIdMiddleware`. Accepts caller-provided `X-Request-ID` headers for end-to-end distributed tracing, binds `request_id` to `structlog` context, and always returns `X-Request-ID` in HTTP response headers.
+- **Probe Separation:**
+  - `/healthz` — Liveness probe (fast, zero dependencies) returning HTTP 200 if the process is alive.
+  - `/readyz` — Readiness probe verifying essential database reachability (PostgreSQL `SELECT 1`). Returns HTTP 503 Service Unavailable if the database is unreachable, safely preventing traffic routing to unready replicas.
+  - `/health` — Diagnostic health overview reporting system version, database status, and uptime for dashboards and status pages.
+- **In-Process Background Task Manager:** Built-in `BackgroundTaskManager` (`app.core.tasks`) executes long-running operations asynchronously without requiring external worker daemons:
+  - Bounded exponential backoff retries (1s, 2s, 4s, capped at 10s) on transient exceptions.
+  - Status tracking (`queued`, `running`, `completed`, `failed`, `cancelled`), progress indicators, and memory-bounded history eviction (retaining up to 500 tasks).
+  - Graceful shutdown integration via FastAPI lifespan ensuring active tasks are cleanly drained or cancelled during SIGTERM.
+  - Asynchronous background execution options for clustering (`/v1/failures/clusters/run`) and failure sync (`/v1/failures/sync`) via `run_in_background=True`.
+- **Production Mode Tenant Guard:** In production mode (`debug=False`), `resolve_project_id` rejects unauthenticated requests without an explicit `project_id` with HTTP 401 Unauthorized, eliminating accidental cross-tenant data exposure.
+- **Startup Configuration Validation:** Automatic inspection of production configuration emitting warnings if placeholder secrets (`JWT_SECRET`, default credentials, wildcard CORS) are detected.
+- **Infrastructure Hardening:** Docker Compose binds PostgreSQL (5432) and Redis (6379) strictly to `127.0.0.1` and uses an automated `initdb` script (`01-init.sql`) to provision the `vector` extension and test database.
+
+### 10.2 Reliability & Task Management Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Diagnostic status report for dashboards and humans |
+| `GET` | `/healthz` | Liveness probe for container orchestrators (Docker, K8s) |
+| `GET` | `/readyz` | Readiness probe verifying PostgreSQL database reachability |
+| `GET` | `/v1/tasks` | List recent background tasks filtered by project tenancy |
+| `GET` | `/v1/tasks/{id}` | Inspect progress, status, and results for a background task |
+| `POST` | `/v1/tasks/{id}/cancel` | Cancel an in-progress or queued background task |
+
+---
+
+## 11. Testing & Quality Assurance
+
+### 11.1 Backend Test Suite (112 Unit & API Tests)
 ```powershell
-python -m pytest apps/api/app/tests -v
+python -m pytest apps/api/app/tests -v -m "not integration"
 ```
 Covers:
+- **Production Readiness & Reliability (Phase 7):** Request correlation ID middleware (`X-Request-ID` generation & propagation), liveness probe (`/healthz`), readiness probe (`/readyz`) with DB health check, production-mode tenant auth enforcement (`resolve_project_id` rejects unauthenticated in `debug=False`), startup configuration safety warnings, SSRF URL validator rules, BackgroundTaskManager in-process async execution, bounded exponential backoff retries, async clustering & failure sync, task status/cancellation API (`/v1/tasks`), and comprehensive End-to-End workflow verification (`test_e2e_workflow.py`).
 - **Failure Intelligence & Clustering (Phase 6):** PII and credential redaction, error text normalization, normalizers across runs/spans/experiments/safety, FakeEmbeddingProvider determinism and validation, cosine similarity boundaries, lexical similarity fallback, single-pass clustering, cluster metadata aggregation, idempotent sync, cluster status transitions with audit logs, similarity search endpoints, and project tenant isolation.
 - **Safety Evaluators & Redaction:** secret canary detection, required refusal checks, forbidden pattern detection, tool policy enforcement, schema validation, multi-rule policy compliance, prompt injection resistance, LLM safety judge mock fallback, and canary redaction.
 - **Safety Runner, Campaigns & Regression:** agent isolation boundary, timeouts, input/output truncation, exception safety, campaign persistence, baseline vs candidate regression comparison, tenant isolation, and alert rule metric computation.
@@ -472,25 +504,38 @@ Covers:
 - **Experiments:** agent directory listing, lifecycle execution, trace Run/Span linkage, per-case result persistence, empty dataset rejection, and unapproved agent rejection.
 - **Core Tracing & Runs:** health endpoints, ingestion cycle validation, batch limits, runs pagination, and waterfall detail retrieval.
 
-### 10.2 Python SDK Test Suite (9 Tests)
+### 11.2 Real PostgreSQL & pgvector Integration Suite (11 Tests)
+```powershell
+# Run with local Docker or external PostgreSQL:
+docker compose -f infra/docker-compose.yml up -d
+python -m pytest apps/api/app/tests -v -m "integration"
+```
+Covers:
+- Alembic migration chain consistency (001 -> 002 -> 003 -> 004 -> 005) and schema upgrades against real PostgreSQL.
+- Full CRUD operations across all 15 ORM models on PostgreSQL with native JSONB, UUID, and timezone-aware timestamps.
+- Native `pgvector` operations: 64-dimensional float vector insertion, cosine distance search (`<=>`), L2 distance, and cluster centroid indexing.
+- Multi-project database-level tenant isolation boundaries.
+- *Graceful skipping:* When PostgreSQL is not running locally (e.g. without Docker Desktop), integration tests skip cleanly with informative messages. In GitHub Actions CI, tests run against a dedicated `pgvector/pgvector:pg16` service container.
+
+### 11.3 Python SDK Test Suite (9 Tests)
 ```powershell
 python -m pytest packages/sdk-python/tests -v
 ```
 Covers: sync/async tracing, nested spans, error recording, redaction, queue limits, flush/shutdown, and transport failure isolation.
 
-### 10.3 Combined Automated Test Execution (106 Tests Total)
+### 11.4 Combined Automated Test Execution (121 Tests Total)
 ```powershell
 python -m pytest apps/api/app/tests packages/sdk-python/tests -v
 ```
-Result: **106 passed, 0 failures, 0 errors** in ~9.5 seconds.
+Result: **121 passed, 11 skipped (PG integration), 0 failures** in ~11 seconds.
 
-### 10.4 Python Code Style & Linting
+### 11.5 Python Code Style & Linting
 ```powershell
 python -m ruff check apps/api packages/sdk-python
 ```
 Result: **All checks passed (0 errors)**.
 
-### 10.5 Frontend Typechecking, Linting & Production Build
+### 11.6 Frontend Typechecking, Linting & Production Build
 ```powershell
 cd apps/web
 npm run typecheck
@@ -502,46 +547,46 @@ Result:
 - **ESLint:** Clean pass.
 - **Production Build:** Successfully compiled all 18 App Router static and dynamic routes (`/`, `/runs`, `/runs/[id]`, `/analytics`, `/alerts`, `/datasets`, `/experiments`, `/experiments/[id]`, `/experiments/compare`, `/safety`, `/safety/campaigns`, `/safety/campaigns/[id]`, `/safety/compare`, `/failures`, `/failures/clusters`, `/failures/clusters/[id]`, `/failures/search`, `/projects`, `/settings`, `/_not-found`).
 
-> **Database & Infrastructure Status Note:**  
-> All 106 automated tests execute against an in-memory SQLite database and mocked transport. Docker Desktop and a live PostgreSQL instance have not yet been started or tested in this local environment; execution of Alembic migrations (`001_initial_schema.py`, `002_evaluation_engine.py`, `003_analytics_and_alerts.py`, `004_safety_module.py`, and `005_failure_intelligence.py`) against live PostgreSQL remains pending Docker availability.
-
 ---
 
-## 11. Monorepo Directory Structure
+## 12. Monorepo Directory Structure
 
 ```
 TraceHarbor/
-├── .github/workflows/ci.yml       # GitHub Actions CI workflow (linting, tests, build)
+├── .github/workflows/ci.yml       # Hardened GitHub Actions CI (unit tests, PG16 container integration, SDK, Next.js build)
 ├── apps/
 │   ├── api/                       # FastAPI backend application
-│   │   ├── alembic/               # Database migrations (001_initial, 002_eval, 003_alerts, 004_safety, 005_failure_intelligence)
+│   │   ├── alembic/               # Database migrations (001_initial -> 002_eval -> 003_alerts -> 004_safety -> 005_failure_intelligence)
 │   │   ├── app/
 │   │   │   ├── alerts/            # Alert evaluation engine, cooldown logic, SSRF-safe notifications
 │   │   │   ├── analytics/         # Metric semantics, percentiles, timeseries bucketing
-│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments, safety, failures
-│   │   │   ├── core/              # Config, DB connection, auth, structured logging
+│   │   │   ├── api/v1/            # API routers: ingest, runs, analytics, alerts, datasets, experiments, safety, failures, tasks
+│   │   │   ├── core/              # Config, DB session factory, auth, structured logging, middleware, tasks
 │   │   │   ├── evaluation/        # Rule evaluators, LLM judge, runner, agent registry, parser
 │   │   │   ├── failures/          # Redaction, normalizer, embedding service, clustering, sync
-│   │   │   ├── models/            # SQLAlchemy models: user, project, run, span, dataset, experiment, alert, safety, failure
+│   │   │   ├── models/            # 15 SQLAlchemy models: user, project, run, span, dataset, experiment, alert, safety, failure
 │   │   │   ├── safety/            # Redaction, evaluators, runner, comparison, dataset parser
 │   │   │   ├── schemas/           # Pydantic v2 request and response contracts
-│   │   │   └── tests/             # 97 automated pytest tests covering all subsystems
-│   │   └── pyproject.toml         # Backend dependencies & tools configuration
+│   │   │   └── tests/             # 112 unit & API tests + 11 PostgreSQL integration tests + E2E workflow
+│   │   │       └── integration/   # Real PostgreSQL 16 & pgvector migration, CRUD, tenant isolation, and vector tests
+│   │   └── pyproject.toml         # Backend dependencies & tools configuration (ruff, pytest)
 │   └── web/                       # Next.js 14 App Router web dashboard
 │       ├── src/
-│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /safety, /failures
+│       │   ├── app/               # Routes: /, /runs, /analytics, /alerts, /datasets, /experiments, /safety, /failures, /projects, /settings
 │       │   ├── components/        # Layout & UI components (Navbar, Sidebar)
 │       │   └── lib/               # Typed API client and TypeScript definitions
 │       └── package.json           # Frontend dependencies
 ├── datasets/                      # Reference golden & safety red-team benchmark datasets (JSON & CSV)
 ├── demo-agents/                   # Standalone agent implementations (Customer Support Agent)
 ├── docs/
-│   └── ARCHITECTURE.md            # In-depth architectural designs & Mermaid sequences
+│   └── ARCHITECTURE.md            # In-depth architectural designs, Mermaid sequences & reliability specifications
 ├── infra/
-│   └── docker-compose.yml         # Container definitions: PostgreSQL 16 (pgvector) & Redis 7
+│   ├── docker-compose.yml         # Local infrastructure: PostgreSQL 16 (pgvector) & Redis 7 (bound to 127.0.0.1)
+│   └── initdb/
+│       └── 01-init.sql            # Automated container init: pgvector extension & traceharbor_test DB
 ├── packages/
-│   └── sdk-python/                # TraceHarbor Python Tracing SDK library
-├── .env.example                   # Environment variables template
+│   └── sdk-python/                # TraceHarbor Python Tracing SDK library (9 passing tests)
+├── .env.example                   # Environment variables template (includes POSTGRES_TEST_URL)
 ├── .gitignore                     # Git ignore rules for Python, Node, and environments
 ├── README.md                      # Comprehensive project documentation
 └── SPEC.md                        # Platform specification & engineering roadmap
@@ -549,7 +594,7 @@ TraceHarbor/
 
 ---
 
-## 12. Roadmap
+## 13. Roadmap
 
 TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 0:** Project Scaffolding & Database Foundation *(Completed & Tested)*
@@ -559,11 +604,11 @@ TraceHarbor follows the incremental roadmap outlined in [SPEC.md](SPEC.md):
 - **Phase 4:** Advanced Analytics, Monitoring & Alerting *(Completed & Tested)*
 - **Phase 5:** AI Safety & Red-Teaming Module *(Completed & Tested)*
 - **Phase 6:** Failure Intelligence & Semantic Clustering via pgvector *(Completed & Tested)*
-- **Phase 7:** Production Hardening & Portfolio Polish *(Upcoming)*
+- **Phase 7:** Production Readiness & Reliability Engineering *(Completed & Tested)*
 
 ---
 
-## 13. Author & Attribution
+## 14. Author & Attribution
 
 **Priyanshu Raman**  
 - **GitHub:** [@priyanshu150106](https://github.com/priyanshu150106)  

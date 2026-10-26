@@ -52,6 +52,10 @@ from app.schemas.runs import (
     RunSummaryResponse,
     SpanResponse,
 )
+from app.schemas.tasks import (
+    TaskListResponse,
+    TaskStatusResponse,
+)
 
 __all__ = [
     "RunIngestSchema",
@@ -94,5 +98,7 @@ __all__ = [
     "FailureSyncRequest",
     "FailureSyncResponse",
     "FailureOverviewMetricsResponse",
+    "TaskStatusResponse",
+    "TaskListResponse",
 ]
 

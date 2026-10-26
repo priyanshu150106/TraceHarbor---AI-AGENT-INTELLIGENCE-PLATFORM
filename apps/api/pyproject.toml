@@ -44,3 +44,6 @@ known-first-party = ["app"]
 testpaths = ["app/tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
+markers = [
+    "integration: marks tests requiring external infrastructure (PostgreSQL, pgvector, Redis)",
+]

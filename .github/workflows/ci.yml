@@ -7,8 +7,8 @@ on:
     branches: [ "master", "main" ]
 
 jobs:
-  backend-quality:
-    name: Backend Linting & Tests
+  backend-unit:
+    name: Backend Linting & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -32,13 +32,82 @@ jobs:
         run: |
           ruff check app
 
-      - name: Run Pytest Tests
+      - name: Run Unit Tests (In-Memory SQLite)
         working-directory: apps/api
+        run: |
+          pytest -v -m "not integration"
+
+  backend-integration:
+    name: PostgreSQL & pgvector Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: th
+          POSTGRES_PASSWORD: change_me_in_production
+          POSTGRES_DB: traceharbor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_TEST_URL: postgresql+asyncpg://th:change_me_in_production@127.0.0.1:5432/traceharbor_test
+      DATABASE_URL: postgresql+asyncpg://th:change_me_in_production@127.0.0.1:5432/traceharbor_test
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Backend Dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,dev]"
+
+      - name: Run Real PostgreSQL & pgvector Integration Tests
+        working-directory: apps/api
+        run: |
+          pytest -v -m "integration"
+
+  sdk-quality:
+    name: Python SDK Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install SDK Dependencies
+        working-directory: packages/sdk-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run SDK Tests
+        working-directory: packages/sdk-python
         run: |
           pytest -v
 
   frontend-quality:
-    name: Frontend Linting & Typecheck
+    name: Frontend Linting, Typecheck & Build
     runs-on: ubuntu-latest
 
     steps:
@@ -66,3 +135,8 @@ jobs:
         working-directory: apps/web
         run: |
           npm run lint
+
+      - name: Build Next.js Production Bundle
+        working-directory: apps/web
+        run: |
+          npm run build

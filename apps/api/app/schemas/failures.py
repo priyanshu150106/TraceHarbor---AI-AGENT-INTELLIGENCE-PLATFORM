@@ -128,26 +128,30 @@ class ClusteringJobRequest(BaseModel):
     similarity_threshold: float | None = Field(None, ge=0.5, le=1.0)
     min_cluster_size: int | None = Field(None, ge=1, le=100)
     max_candidates: int | None = Field(None, ge=10, le=5000)
+    run_in_background: bool = Field(False, description="Run clustering as an asynchronous background task")
 
 
 class ClusteringJobResponse(BaseModel):
     status: str
-    clusters_created: int
-    clusters_updated: int
-    events_assigned: int
-    events_unassigned: int
+    clusters_created: int = 0
+    clusters_updated: int = 0
+    events_assigned: int = 0
+    events_unassigned: int = 0
     algorithm_version: str
+    task_id: str | None = None
 
 
 class FailureSyncRequest(BaseModel):
     auto_embed: bool = Field(True, description="Whether to automatically compute embeddings for synced events")
+    run_in_background: bool = Field(False, description="Run sync as an asynchronous background task")
 
 
 class FailureSyncResponse(BaseModel):
-    scanned: int
-    created: int
-    skipped: int
+    scanned: int = 0
+    created: int = 0
+    skipped: int = 0
     status: str
+    task_id: str | None = None
 
 
 class FailureOverviewMetricsResponse(BaseModel):

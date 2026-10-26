@@ -12,13 +12,15 @@ services:
     container_name: traceharbor-postgres
     restart: unless-stopped
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Bind to localhost only — never expose DB to the network
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-th}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
       POSTGRES_DB: ${POSTGRES_DB:-traceharbor}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-th} -d ${POSTGRES_DB:-traceharbor}"]
       interval: 10s
@@ -32,7 +34,8 @@ services:
     container_name: traceharbor-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      # Bind to localhost only
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -42,6 +45,9 @@ services:
       retries: 5
       start_period: 10s
     command: redis-server --appendonly yes
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   pgdata:

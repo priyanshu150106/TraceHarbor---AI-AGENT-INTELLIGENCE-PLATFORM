@@ -83,7 +83,7 @@ def validate_webhook_url(url: str) -> str:
             raise SSRFValidationError(
                 f"Destination IP '{ip_str}' resolved for '{hostname_clean}' is in a private or restricted network range."
             )
-            raise SSRFValidationError("Destination targets cloud instance metadata service.")
+
 
     return url
 

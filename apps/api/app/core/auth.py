@@ -3,6 +3,7 @@ TraceHarbor API — Authentication & API Key Verification
 """
 
 import hashlib
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -11,8 +12,11 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.api_key import ApiKey
+
+logger = logging.getLogger("traceharbor.auth")
 
 # Supported header authentication methods
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -81,8 +85,9 @@ async def resolve_project_id(
     """
     Resolve the active project ID for read requests.
     If an API key is provided, enforces that key's project tenancy.
-    If no key is provided (e.g. local development dashboard), safely falls
-    back to the specified project_id or the primary active project.
+    If no key is provided and debug=True (local dashboard), safely falls
+    back to the first project. In production mode, rejects unauthenticated
+    requests that don't specify a project_id.
     """
     raw_key = x_api_key or (bearer.credentials if bearer else None)
     if raw_key:
@@ -97,11 +102,23 @@ async def resolve_project_id(
     if project_id:
         return project_id
 
-    # Fallback to the first existing project in database for local dashboard browsing
+    # In production mode (debug=False), reject unauthenticated requests
+    # that don't specify a project_id. This prevents accidental cross-tenant
+    # data exposure via the dashboard fallback path.
+    if not settings.debug:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key or explicit project_id required in production mode.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    # Development-only fallback: return first project for local dashboard browsing
+    logger.warning(
+        "Unauthenticated request falling back to first project (debug mode only)"
+    )
     from app.models.project import Project
 
     stmt = select(Project.id).limit(1)
     res = await db.execute(stmt)
     first_id = res.scalar_one_or_none()
     return first_id
-
