@@ -86,6 +86,7 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         source_type="run",
         source_id=str(uuid.uuid4()),
         error_summary="Unauthorized access token expired",
+        normalized_text="unauthorized access token expired",
         occurred_at=now,
     )
     dataset_a = Dataset(
@@ -134,6 +135,7 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         source_type="run",
         source_id=str(uuid.uuid4()),
         error_summary="Unauthorized access token expired",
+        normalized_text="unauthorized access token expired",
         occurred_at=now,
     )
     dataset_b = Dataset(
