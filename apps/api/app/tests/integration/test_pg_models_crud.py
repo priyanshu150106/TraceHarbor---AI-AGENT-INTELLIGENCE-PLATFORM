@@ -11,6 +11,7 @@ Tests all 15 core SQLAlchemy ORM models against real PostgreSQL to verify:
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -77,13 +78,12 @@ async def test_run_and_span_hierarchical_storage(
         id=uuid.uuid4(),
         project_id=project.id,
         name="Support Agent Workflow",
-        agent_name="support_v2",
         status="completed",
-        start_time=now,
-        end_time=now,
+        started_at=now,
+        ended_at=now,
         total_tokens=1500,
-        total_cost=0.0045,
-        metadata_={"session_id": "sess_abc123", "client_ip": "10.0.0.1"},
+        total_cost_usd=Decimal("0.004500"),
+        run_metadata={"session_id": "sess_abc123", "client_ip": "10.0.0.1"},
     )
     pg_session.add(run)
     await pg_session.flush()
@@ -92,13 +92,12 @@ async def test_run_and_span_hierarchical_storage(
     root_span = Span(
         id=uuid.uuid4(),
         run_id=run.id,
-        project_id=project.id,
         name="agent_execution",
         span_type="agent",
         status="completed",
-        start_time=now,
-        end_time=now,
-        attributes={"framework": "langchain", "tools_count": 2},
+        started_at=now,
+        ended_at=now,
+        span_metadata={"framework": "langchain", "tools_count": 2},
     )
     pg_session.add(root_span)
     await pg_session.flush()
@@ -107,14 +106,13 @@ async def test_run_and_span_hierarchical_storage(
     child_span = Span(
         id=uuid.uuid4(),
         run_id=run.id,
-        project_id=project.id,
         parent_span_id=root_span.id,
         name="kb_search_tool",
         span_type="tool",
         status="completed",
-        start_time=now,
-        end_time=now,
-        attributes={"query": "billing refund policy", "results": 3},
+        started_at=now,
+        ended_at=now,
+        span_metadata={"query": "billing refund policy", "results": 3},
     )
     pg_session.add(child_span)
     await pg_session.commit()
@@ -129,7 +127,7 @@ async def test_run_and_span_hierarchical_storage(
     assert len(spans) == 2
     assert spans[0].parent_span_id is None
     assert spans[1].parent_span_id == root_span.id
-    assert spans[1].attributes["query"] == "billing refund policy"
+    assert spans[1].span_metadata["query"] == "billing refund policy"
 
 
 @pytest.mark.integration
@@ -204,9 +202,10 @@ async def test_alert_rules_and_history_crud(
         project_id=project.id,
         name="High Error Rate Alert",
         metric="error_rate",
-        condition="gt",
+        operator=">",
         threshold=0.05,
         window_minutes=15,
+        channel="webhook",
         webhook_url="https://alerts.example.com/webhook",
         is_active=True,
     )
@@ -299,6 +298,7 @@ async def test_failure_clusters_and_status_changes(
         project_id=project.id,
         cluster_id=cluster.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Connection timed out after 30000ms",
         failure_category="timeout",
         severity="high",

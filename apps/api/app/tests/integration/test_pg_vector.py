@@ -44,6 +44,7 @@ async def test_pgvector_insert_and_retrieve(
         id=uuid.uuid4(),
         project_id=project.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Vector test event",
         normalized_text="vector test event",
         embedding_status="completed",
@@ -89,6 +90,7 @@ async def test_pgvector_cosine_distance_nearest_neighbor(
         id=uuid.uuid4(),
         project_id=project.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Close semantic match: Database connection reset by peer",
         normalized_text="database connection reset by peer",
         embedding_status="completed",
@@ -99,6 +101,7 @@ async def test_pgvector_cosine_distance_nearest_neighbor(
         id=uuid.uuid4(),
         project_id=project.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Distant semantic match: JSON schema validation error",
         normalized_text="json schema validation error",
         embedding_status="completed",
@@ -141,7 +144,7 @@ async def test_pgvector_cluster_centroid_and_membership(
         project_id=project.id,
         title="Payment Gateway GatewayTimeout Cluster",
         dominant_category="timeout",
-        centroid=centroid_vec,
+        centroid_embedding=centroid_vec,
         first_seen_at=now,
         last_seen_at=now,
         event_count=1,
@@ -154,6 +157,7 @@ async def test_pgvector_cluster_centroid_and_membership(
         project_id=project.id,
         cluster_id=cluster.id,
         source_type="span",
+        source_id=str(uuid.uuid4()),
         error_summary="GatewayTimeout: Stripe API did not respond",
         normalized_text="gatewaytimeout stripe api did not respond",
         embedding_status="completed",
@@ -167,7 +171,7 @@ async def test_pgvector_cluster_centroid_and_membership(
     stmt = (
         select(FailureCluster)
         .where(FailureCluster.project_id == project.id)
-        .order_by(FailureCluster.centroid.cosine_distance(centroid_vec))
+        .order_by(FailureCluster.centroid_embedding.cosine_distance(centroid_vec))
         .limit(1)
     )
     found_cluster = (await pg_session.execute(stmt)).scalar_one()

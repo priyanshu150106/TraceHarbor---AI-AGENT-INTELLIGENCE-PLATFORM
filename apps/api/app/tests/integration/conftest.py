@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.database import Base
 from app.models.api_key import ApiKey
@@ -71,7 +72,7 @@ if PG_AVAILABLE:
     pg_test_engine = create_async_engine(
         POSTGRES_TEST_URL,
         echo=False,
-        pool_pre_ping=True,
+        poolclass=NullPool,
     )
     PgSessionLocal = async_sessionmaker(
         pg_test_engine,
@@ -93,7 +94,7 @@ def require_postgres() -> None:
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_test_db() -> AsyncGenerator[None, None]:
+async def setup_test_db(request: pytest.FixtureRequest) -> AsyncGenerator[None, None]:
     """
     Override root SQLite autouse fixture for the integration/ directory.
     When PostgreSQL is available, ensures all tables exist on PostgreSQL.
@@ -103,17 +104,33 @@ async def setup_test_db() -> AsyncGenerator[None, None]:
         return
 
     assert pg_test_engine is not None
+
+    if "alembic" in request.node.name:
+        async with pg_test_engine.begin() as conn:
+            with contextlib.suppress(Exception):
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            await conn.run_sync(Base.metadata.drop_all)
+            with contextlib.suppress(Exception):
+                await conn.execute(text("DROP TABLE IF EXISTS alembic_version;"))
+        yield
+        async with pg_test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            with contextlib.suppress(Exception):
+                await conn.execute(text("DROP TABLE IF EXISTS alembic_version;"))
+        return
+
     async with pg_test_engine.begin() as conn:
-        # Try enabling pgvector extension
         with contextlib.suppress(Exception):
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield
 
-    # Clean up tables after session
+    # Clean up tables after test
     async with pg_test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        with contextlib.suppress(Exception):
+            await conn.execute(text("DROP TABLE IF EXISTS alembic_version;"))
 
 
 @pytest_asyncio.fixture

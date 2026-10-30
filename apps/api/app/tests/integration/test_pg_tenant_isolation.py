@@ -52,26 +52,25 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         id=uuid.uuid4(),
         project_id=project_a.id,
         name="Production Agent",
-        agent_name="agent-prod",
         status="completed",
-        start_time=now,
+        started_at=now,
     )
     span_a = Span(
         id=uuid.uuid4(),
         run_id=run_a.id,
-        project_id=project_a.id,
         name="execute_tool",
         span_type="tool",
         status="completed",
-        start_time=now,
+        started_at=now,
     )
     alert_a = AlertRule(
         id=uuid.uuid4(),
         project_id=project_a.id,
         name="Production Alert",
         metric="error_rate",
-        condition="gt",
+        operator=">",
         threshold=0.01,
+        channel="webhook",
         webhook_url="https://tenant-a.com/webhook",
     )
     cluster_a = FailureCluster(
@@ -85,6 +84,7 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         id=uuid.uuid4(),
         project_id=project_a.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Unauthorized access token expired",
         occurred_at=now,
     )
@@ -100,26 +100,25 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         id=uuid.uuid4(),
         project_id=project_b.id,
         name="Production Agent",
-        agent_name="agent-prod",
         status="completed",
-        start_time=now,
+        started_at=now,
     )
     span_b = Span(
         id=uuid.uuid4(),
         run_id=run_b.id,
-        project_id=project_b.id,
         name="execute_tool",
         span_type="tool",
         status="completed",
-        start_time=now,
+        started_at=now,
     )
     alert_b = AlertRule(
         id=uuid.uuid4(),
         project_id=project_b.id,
         name="Production Alert",
         metric="error_rate",
-        condition="gt",
+        operator=">",
         threshold=0.01,
+        channel="webhook",
         webhook_url="https://tenant-b.com/webhook",
     )
     cluster_b = FailureCluster(
@@ -133,6 +132,7 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
         id=uuid.uuid4(),
         project_id=project_b.id,
         source_type="run",
+        source_id=str(uuid.uuid4()),
         error_summary="Unauthorized access token expired",
         occurred_at=now,
     )
@@ -149,7 +149,7 @@ async def test_cross_tenant_isolation_in_postgres(pg_session: AsyncSession) -> N
     assert len(runs_a) == 1
     assert runs_a[0].id == run_a.id
 
-    spans_a = (await pg_session.scalars(select(Span).where(Span.project_id == project_a.id))).all()
+    spans_a = (await pg_session.scalars(select(Span).join(Run).where(Run.project_id == project_a.id))).all()
     assert len(spans_a) == 1
     assert spans_a[0].id == span_a.id
 
