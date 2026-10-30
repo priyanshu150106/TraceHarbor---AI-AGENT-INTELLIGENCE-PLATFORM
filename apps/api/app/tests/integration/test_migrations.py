@@ -8,9 +8,9 @@ and verifies schema upgrades against real PostgreSQL when available.
 from pathlib import Path
 
 import pytest
-
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
 from app.tests.integration.conftest import POSTGRES_TEST_URL
 
 
