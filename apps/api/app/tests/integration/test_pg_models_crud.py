@@ -161,8 +161,9 @@ async def test_dataset_and_experiment_results_crud(
         dataset_id=dataset.id,
         name="Support Agent v1 vs v2",
         agent_name="support_v1",
+        agent_version="v1.0",
         status="completed",
-        evaluator_names=["exact_match", "latency_threshold"],
+        config={"evaluators": ["exact_match", "latency_threshold"]},
     )
     pg_session.add(experiment)
     await pg_session.flush()
@@ -171,11 +172,10 @@ async def test_dataset_and_experiment_results_crud(
         id=uuid.uuid4(),
         experiment_id=experiment.id,
         test_case_id=test_case.id,
-        project_id=project.id,
-        status="passed",
-        agent_output="Navigate to settings -> security -> reset password.",
+        status="pass",
+        actual_output="Navigate to settings -> security -> reset password.",
         scores={"exact_match": 1.0, "latency_threshold": 1.0},
-        metrics={"latency_ms": 142.5},
+        duration_ms=142,
     )
     pg_session.add(result)
     await pg_session.commit()
@@ -184,7 +184,8 @@ async def test_dataset_and_experiment_results_crud(
     exp_res = await pg_session.get(ExperimentResult, result.id)
     assert exp_res is not None
     assert exp_res.scores["exact_match"] == 1.0
-    assert exp_res.metrics["latency_ms"] == 142.5
+    assert exp_res.duration_ms == 142
+    assert exp_res.actual_output == "Navigate to settings -> security -> reset password."
 
 
 @pytest.mark.integration
