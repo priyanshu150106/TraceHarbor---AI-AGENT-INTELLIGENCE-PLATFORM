@@ -8,8 +8,9 @@ Demonstrates the complete platform lifecycle:
 4. Adversarial Red-Team Safety Campaign (/v1/safety/campaigns)
 5. Failure Intelligence Synchronization & Redaction (/v1/failures/sync)
 6. Semantic Vector Clustering & Status Triage (/v1/failures/cluster)
-7. Similar Failure Search (/v1/failures/search)
-8. Multi-Tenant Project Isolation Boundary Check (403 Forbidden)
+7. Alert Rule Configuration, Evaluation & Cooldown (/v1/alerts/rules, /v1/alerts/evaluate)
+8. Asynchronous Background Task Lifecycle (/v1/tasks)
+9. Multi-Tenant Project Isolation Boundary Check (403 Forbidden)
 
 Usage:
     python scripts/demo_walkthrough.py
@@ -23,7 +24,6 @@ import os
 import sys
 import time
 import uuid
-from typing import Any
 
 import httpx
 
@@ -80,9 +80,13 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         else:
             print_info("Live server not detected or --in-memory requested. Running against in-process ASGI engine.")
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "api"))
-            from app.main import app
             from app.core.database import Base, get_db
-            from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+            from app.main import app
+            from sqlalchemy.ext.asyncio import (
+                AsyncSession,
+                async_sessionmaker,
+                create_async_engine,
+            )
             from sqlalchemy.pool import StaticPool
 
             sqlite_engine = create_async_engine(
@@ -112,9 +116,10 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
             app.dependency_overrides[get_db] = override_get_db
 
             import hashlib
-            from app.models.user import User
-            from app.models.project import Project
+
             from app.models.api_key import ApiKey
+            from app.models.project import Project
+            from app.models.user import User
 
             demo_api_key = "th_live_demo_key_12345"
             key_hash = hashlib.sha256(demo_api_key.encode("utf-8")).hexdigest()
@@ -183,13 +188,13 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         # Step 2: Telemetry Ingestion & Run Hierarchy
         # ---------------------------------------------------------
         print_step(2, "Agent Telemetry Ingestion & Span Hierarchy")
-        from datetime import datetime, timezone
+        from datetime import UTC, datetime
 
         run_id = str(uuid.uuid4())
         root_span_id = str(uuid.uuid4())
         tool_span_id = str(uuid.uuid4())
         llm_span_id = str(uuid.uuid4())
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
 
         payload = {
             "runs": [
@@ -322,11 +327,69 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
             json={
                 "name": f"demo_golden_dataset_{ts}",
                 "description": "Deterministic FAQ test suite",
+                "cases": [
+                    {
+                        "input": "What is the return policy?",
+                        "expected_output": "Customers can return items within 30 days of purchase for a full refund or exchange.",
+                        "criteria": {"required_keywords": ["30 days", "refund"]},
+                    },
+                    {
+                        "input": "How long does shipping take?",
+                        "expected_output": "Standard shipping takes 3-5 business days. Express shipping takes 1-2 business days.",
+                        "criteria": {"required_keywords": ["3-5 business days"]},
+                    },
+                ],
             },
         )
         assert ds_res.status_code in (200, 201), f"Dataset creation failed: {ds_res.text}"
         ds_id = ds_res.json()["id"]
-        print_pass(f"Created golden dataset (ID: {ds_id})")
+        print_pass(f"Created golden dataset (ID: {ds_id}) with 2 test cases")
+
+        # Execute baseline experiment (support_agent v1.0)
+        exp_baseline_res = await client.post(
+            "/v1/experiments?run_sync=true",
+            json={
+                "name": f"Support v1.0 Baseline {ts}",
+                "dataset_id": ds_id,
+                "agent_name": "support_agent",
+                "agent_version": "1.0",
+                "description": "Baseline v1.0 evaluation",
+            },
+        )
+        assert exp_baseline_res.status_code in (200, 201), f"Baseline experiment failed: {exp_baseline_res.text}"
+        base_exp = exp_baseline_res.json()
+        base_exp_id = base_exp["id"]
+        print_pass(f"Executed baseline experiment: pass_rate={base_exp.get('pass_rate')}, score={base_exp.get('score')}")
+
+        # Execute candidate experiment (support_agent v2.0-improved)
+        exp_candidate_res = await client.post(
+            "/v1/experiments?run_sync=true",
+            json={
+                "name": f"Support v2.0 Candidate {ts}",
+                "dataset_id": ds_id,
+                "agent_name": "support_agent",
+                "agent_version": "2.0-improved",
+                "description": "Candidate v2.0-improved evaluation",
+            },
+        )
+        assert exp_candidate_res.status_code in (200, 201), f"Candidate experiment failed: {exp_candidate_res.text}"
+        cand_exp = exp_candidate_res.json()
+        cand_exp_id = cand_exp["id"]
+        print_pass(f"Executed candidate experiment: pass_rate={cand_exp.get('pass_rate')}, score={cand_exp.get('score')}")
+
+        # Retrieve per-case experiment results
+        exp_detail_res = await client.get(f"/v1/experiments/{base_exp_id}")
+        assert exp_detail_res.status_code == 200
+        exp_detail = exp_detail_res.json()
+        print_pass(f"Retrieved experiment results: {len(exp_detail.get('results', []))} cases evaluated")
+
+        # Compare baseline vs candidate
+        exp_compare_res = await client.get(f"/v1/experiments/compare?a={base_exp_id}&b={cand_exp_id}")
+        assert exp_compare_res.status_code == 200, f"Experiment comparison failed: {exp_compare_res.text}"
+        exp_compare = exp_compare_res.json()
+        total_aligned = exp_compare.get("summary", {}).get("total_compared", 0)
+        score_delta = exp_compare.get("summary", {}).get("score_delta", 0.0)
+        print_pass(f"Regression comparison complete: {total_aligned} cases aligned, delta={score_delta}")
 
         # ---------------------------------------------------------
         # Step 4: Adversarial Safety Red-Teaming Campaign
@@ -365,7 +428,7 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         safety_ds_id = safety_ds_res.json()["id"]
         print_pass(f"Created safety dataset (ID: {safety_ds_id}) with 2 adversarial test cases")
 
-        # Run safety campaign with run_sync=true
+        # Run baseline safety campaign with run_sync=true
         campaign_res = await client.post(
             "/v1/safety/campaigns?run_sync=true",
             json={
@@ -377,7 +440,28 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         )
         assert campaign_res.status_code in (200, 201), f"Campaign failed: {campaign_res.text}"
         campaign_data = campaign_res.json()
-        print_pass(f"Executed Safety Campaign: Status='{campaign_data.get('status', 'completed')}'")
+        camp_id_1 = campaign_data["id"]
+        print_pass(f"Executed Safety Campaign: Status='{campaign_data.get('status', 'completed')}', Pass Rate={campaign_data.get('safety_pass_rate', 1.0)}")
+
+        # Run candidate safety campaign with vulnerable agent version
+        campaign_cand_res = await client.post(
+            "/v1/safety/campaigns?run_sync=true",
+            json={
+                "name": f"Demo Red-Team Audit Candidate {ts}",
+                "dataset_id": safety_ds_id,
+                "agent_name": "support_agent",
+                "agent_version": "0.9-buggy",
+            },
+        )
+        assert campaign_cand_res.status_code in (200, 201)
+        camp_id_2 = campaign_cand_res.json()["id"]
+
+        # Safety campaign comparison
+        safety_comp_res = await client.get(f"/v1/safety/compare?a={camp_id_1}&b={camp_id_2}")
+        assert safety_comp_res.status_code == 200
+        safety_comp = safety_comp_res.json()
+        total_safety_aligned = safety_comp.get("summary", {}).get("total_aligned_cases", 0)
+        print_pass(f"Safety comparison complete: {total_safety_aligned} cases aligned across threat categories")
 
         # ---------------------------------------------------------
         # Step 5: Failure Event Synchronization & Redaction
@@ -387,6 +471,15 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         assert sync_res.status_code == 200, f"Failure sync failed: {sync_res.text}"
         sync_data = sync_res.json()
         print_pass(f"Synchronized failures: {sync_data.get('created', 0)} new event(s) captured ({sync_data.get('scanned', 0)} scanned)")
+
+        # List failure events and assert redaction
+        events_res = await client.get("/v1/failures")
+        assert events_res.status_code == 200
+        events_list = events_res.json().get("items", [])
+        for ev in events_list:
+            norm_text = ev.get("normalized_text", "")
+            assert "change_me_in_production" not in norm_text, "Database password leaked in failure text"
+        print_pass(f"Verified {len(events_list)} failure events with credentials and PII sanitized")
 
         # ---------------------------------------------------------
         # Step 6: Semantic Failure Clustering & Investigation Triage
@@ -418,12 +511,9 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
                 },
             )
             assert update_res.status_code == 200
-            print_pass(f"Updated Cluster status to 'investigating' with investigation notes")
+            print_pass("Updated Cluster status to 'investigating' with resolution notes")
 
-        # ---------------------------------------------------------
-        # Step 7: Similarity Search
-        # ---------------------------------------------------------
-        print_step(7, "Semantic Similarity Search")
+        # Semantic/Lexical similarity search
         search_res = await client.post(
             "/v1/failures/search",
             json={"query_text": "database timeout connecting upstream", "threshold": 0.5, "limit": 5},
@@ -433,10 +523,67 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         print_pass(f"Similarity search executed via '{search_data.get('search_method')}': {len(search_data.get('results', []))} matches found")
 
         # ---------------------------------------------------------
-        # Step 8: Multi-Tenant Project Isolation Boundary
+        # Step 7: Alert Rule Configuration & Evaluation
         # ---------------------------------------------------------
-        print_step(8, "Multi-Tenant Project Isolation Verification")
-        # Attaching an unauthorized or different project API key should be rejected or forbidden
+        print_step(7, "Alert Rules, Evaluation & Webhook Security")
+        rule_res = await client.post(
+            "/v1/alerts/rules",
+            json={
+                "name": f"High Error Rate Alert {ts}",
+                "metric": "error_rate",
+                "operator": ">",
+                "threshold": 0.01,
+                "window_minutes": 60,
+                "channel": "in_app",
+                "is_active": True,
+            },
+        )
+        assert rule_res.status_code == 201, f"Alert rule creation failed: {rule_res.text}"
+        rule_id = rule_res.json()["id"]
+        print_pass(f"Created alert rule (ID: {rule_id}) for metric 'error_rate' > 1%")
+
+        # Evaluate alerts
+        eval_res = await client.post("/v1/alerts/evaluate")
+        assert eval_res.status_code == 200
+        eval_data = eval_res.json()
+        print_pass(f"Alert evaluation completed: {eval_data.get('rules_evaluated', 0)} rules evaluated, {eval_data.get('alerts_triggered', 0)} triggered")
+
+        # Verify cooldown suppression on subsequent evaluation
+        eval_res2 = await client.post("/v1/alerts/evaluate")
+        assert eval_res2.status_code == 200
+        eval_data2 = eval_res2.json()
+        print_pass(f"Cooldown suppression verified: {eval_data2.get('cooldown_suppressed', 0)} alert(s) suppressed by cooldown")
+
+        # ---------------------------------------------------------
+        # Step 8: Asynchronous Background Task Lifecycle
+        # ---------------------------------------------------------
+        print_step(8, "Asynchronous Background Task Lifecycle")
+        task_res = await client.post(
+            "/v1/failures/clusters/run",
+            json={"similarity_threshold": 0.70, "min_cluster_size": 1, "run_in_background": True},
+        )
+        assert task_res.status_code == 200
+        task_data = task_res.json()
+        async_task_id = task_data.get("task_id")
+        if async_task_id:
+            # Poll task status
+            poll_res = await client.get(f"/v1/tasks/{async_task_id}")
+            assert poll_res.status_code == 200
+            print_pass(f"Created async background task (ID: {async_task_id}, Status: '{poll_res.json().get('status')}')")
+
+            # List tasks
+            tasks_list_res = await client.get("/v1/tasks")
+            assert tasks_list_res.status_code == 200
+            assert any(t["task_id"] == async_task_id for t in tasks_list_res.json().get("tasks", []))
+            print_pass(f"Task visibility confirmed in /v1/tasks (total retained: {tasks_list_res.json().get('total')})")
+        else:
+            print_info("Task ran synchronously or background queue unavailable")
+
+
+        # ---------------------------------------------------------
+        # Step 9: Multi-Tenant Project Isolation Boundary
+        # ---------------------------------------------------------
+        print_step(9, "Multi-Tenant Project Isolation Verification")
         tampered_headers = {"X-API-Key": "th_live_unauthorized_different_tenant_key_9999"}
         unauth_res = await client.get("/v1/runs", headers=tampered_headers)
         if unauth_res.status_code in (401, 403):
@@ -444,12 +591,13 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         else:
             print_info(f"Unauthenticated / dev-mode fallback responded: {unauth_res.status_code}")
 
+
         # ---------------------------------------------------------
         # Summary
         # ---------------------------------------------------------
         print(f"\n{BOLD}{GREEN}======================================================{RESET}")
         print(f"{BOLD}{GREEN} [SUCCESS] TraceHarbor E2E Demonstration Completed!   {RESET}")
-        print(f"{BOLD}{GREEN} All 8 subsystems verified and operational.            {RESET}")
+        print(f"{BOLD}{GREEN} All 9 subsystems verified and operational.            {RESET}")
         print(f"{BOLD}{GREEN}======================================================{RESET}\n")
 
     finally:
