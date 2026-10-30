@@ -23,6 +23,7 @@ dependencies = [
     "structlog>=24.4.0",
     "jsonschema>=4.20.0",
     "pgvector>=0.3.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
