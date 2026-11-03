@@ -24,8 +24,10 @@ from app.api.v1.runs import router as runs_router
 from app.api.v1.safety import router as safety_router
 from app.api.v1.tasks import router as tasks_router
 from app.core.config import settings
+from app.core.cors import resolve_cors_origins, validate_production_cors_at_startup
 from app.core.logging import setup_logging
-from app.core.middleware import CorrelationIdMiddleware
+from app.core.middleware import ContentLengthLimitMiddleware, CorrelationIdMiddleware
+from app.core.rate_limit import RateLimitMiddleware
 from app.core.tasks import task_manager
 
 logger = logging.getLogger("traceharbor.startup")
@@ -47,12 +49,19 @@ def _validate_startup_configuration() -> None:
             "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
         )
 
-    # CORS wildcard in production
+    # Validate CORS in production mode
     if not settings.debug:
-        warnings.append(
-            "CORS allow_origins=['*'] is configured. "
-            "Restrict to specific origins in production."
-        )
+        validate_production_cors_at_startup(settings)
+
+    # Validate DEMO_PROJECT_ID format if configured
+    if settings.demo_project_id:
+        try:
+            import uuid
+            uuid.UUID(settings.demo_project_id)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid DEMO_PROJECT_ID UUID format: '{settings.demo_project_id}'."
+            ) from exc
 
     # Database URL still has default password
     if "change_me_in_production" in settings.database_url and not settings.debug:
@@ -92,17 +101,45 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Request Correlation ID Middleware (must be added before CORS)
+# Request Correlation ID Middleware
 app.add_middleware(CorrelationIdMiddleware)
 
-# CORS Middleware
+# Request Payload Size Limiting Middleware
+app.add_middleware(ContentLengthLimitMiddleware)
+
+# Abuse Prevention & Rate Limiting Middleware
+app.add_middleware(RateLimitMiddleware)
+
+# CORS Middleware with safe origin resolution (outermost middleware)
+allowed_origins = resolve_cors_origins(settings)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Correlation-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Handle Starlette and FastAPI HTTP exceptions, unwrapping any nested exceptions from ExceptionGroup."""
+    cause = getattr(exc, "__cause__", None)
+    if cause:
+        sub_exceptions = getattr(cause, "exceptions", [cause])
+        for sub in sub_exceptions:
+            if getattr(sub, "status_code", None) == 413:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": getattr(sub, "detail", "Payload Too Large")},
+                    headers=getattr(sub, "headers", None) or {},
+                )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None) or {},
+    )
 
 
 @app.exception_handler(Exception)

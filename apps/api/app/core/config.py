@@ -5,6 +5,7 @@ Loads configuration from environment variables using Pydantic Settings.
 See .env.example at the project root for all available variables.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,15 +32,70 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
 
-    # ---------- Server ----------
+    # ---------- Server & CORS ----------
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
     log_level: str = "INFO"
+    cors_origins: list[str] = []
+
+    # ---------- Public Demo Mode & Abuse Protections ----------
+    demo_mode: bool = False
+    demo_project_id: str | None = None
+    rate_limit_enabled: bool = True
+    rate_limit_demo_per_minute: int = 60
+    rate_limit_auth_per_minute: int = 300
+    max_request_body_bytes: int = 10 * 1024 * 1024  # 10 MB
+
+    # ---------- Reverse Proxy & Trusted Forwarding ----------
+    trusted_proxies: list[str] = ["127.0.0.1", "::1", "testclient"]
+    proxy_headers_enabled: bool = False
 
     # ---------- App ----------
     app_name: str = "TraceHarbor"
     app_version: str = "0.1.0"
     debug: bool = False
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: object) -> list[str]:
+        """Parse comma-separated string or list of origins into list[str]."""
+        if isinstance(v, str):
+            v_clean = v.strip()
+            if not v_clean:
+                return []
+            if v_clean.startswith("[") and v_clean.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v_clean)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except Exception:
+                    pass
+            return [origin.strip() for origin in v_clean.split(",") if origin.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(origin).strip() for origin in v if str(origin).strip()]
+        return []
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, v: object) -> list[str]:
+        """Parse comma-separated string or list of trusted proxies."""
+        if isinstance(v, str):
+            v_clean = v.strip()
+            if not v_clean:
+                return []
+            if v_clean.startswith("[") and v_clean.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v_clean)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except Exception:
+                    pass
+            return [ip.strip() for ip in v_clean.split(",") if ip.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(ip).strip() for ip in v if str(ip).strip()]
+        return ["127.0.0.1", "::1", "testclient"]
 
     # ---------- Evaluation & Datasets ----------
     max_dataset_upload_size_bytes: int = 5 * 1024 * 1024  # 5 MB

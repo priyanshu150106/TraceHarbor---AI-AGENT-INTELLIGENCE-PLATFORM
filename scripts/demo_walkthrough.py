@@ -604,13 +604,121 @@ async def run_walkthrough(base_url: str | None, in_memory: bool) -> None:
         await client.aclose()
 
 
+async def run_public_demo_verification(base_url: str | None) -> None:
+    """
+    Verify a hosted public demo instance:
+    1. Service health probes (/healthz, /readyz, /health)
+    2. Read operations scoped to the demo tenant
+    3. Public mutation attempts strictly blocked (403 Forbidden)
+    4. Cross-tenant access attempts blocked (403 Forbidden)
+    """
+    target_url = (base_url or "http://127.0.0.1:8000").rstrip("/")
+    print(f"{BOLD}{BLUE}======================================================{RESET}")
+    print(f"{BOLD}{BLUE} TraceHarbor — Public Portfolio Demo Verification     {RESET}")
+    print(f"{BOLD}{BLUE} Testing Read-Only Access, Scoping & Mutation Guards  {RESET}")
+    print(f"{BOLD}{BLUE}======================================================{RESET}")
+    print_info(f"Connecting to unauthenticated public API: {target_url}")
+
+    async with httpx.AsyncClient(base_url=target_url, timeout=30.0) as client:
+        # Step 1: Health & Readiness Probes
+        print_step(1, "Service Health & Probe Verification")
+        res_live = await client.get("/healthz")
+        assert res_live.status_code == 200, f"/healthz returned {res_live.status_code}"
+        print_pass("Liveness probe (/healthz) confirmed alive")
+
+        res_ready = await client.get("/readyz")
+        assert res_ready.status_code == 200, f"/readyz returned {res_ready.status_code}"
+        print_pass("Readiness probe (/readyz) confirmed ready")
+
+        # Step 2: Public Read Operations
+        print_step(2, "Public Read Operations & Synthetic Demo Tenancy")
+        res_runs = await client.get("/v1/runs")
+        assert res_runs.status_code == 200, f"/v1/runs returned {res_runs.status_code}"
+        runs_data = res_runs.json()
+        print_pass(f"Retrieved demo runs list: {runs_data.get('total', 0)} total runs available")
+
+        res_projects = await client.get("/v1/projects")
+        assert res_projects.status_code == 200
+        projects = res_projects.json()
+        assert len(projects) == 1, f"Expected 1 demo project, got {len(projects)}"
+        demo_project_id = projects[0]["id"]
+        print_pass(f"Verified single demo project visible: '{projects[0]['name']}' ({demo_project_id})")
+
+        res_datasets = await client.get("/v1/datasets")
+        assert res_datasets.status_code == 200
+        print_pass(f"Retrieved golden datasets: {res_datasets.json().get('total', 0)} datasets available")
+
+        res_experiments = await client.get("/v1/experiments")
+        assert res_experiments.status_code == 200
+        print_pass(f"Retrieved benchmark experiments: {res_experiments.json().get('total', 0)} experiments available")
+
+        res_safety = await client.get("/v1/safety/overview")
+        assert res_safety.status_code == 200
+        print_pass("Retrieved red-team safety overview metrics")
+
+        res_failures = await client.get("/v1/failures/overview")
+        assert res_failures.status_code == 200
+        print_pass("Retrieved failure intelligence and cluster metrics")
+
+        # Step 3: Mutation Operations Strictly Blocked
+        print_step(3, "Public Mutation Blocking & Read-Only Enforcement")
+        res_ds_mut = await client.post("/v1/datasets", json={"name": "Attacker Dataset"})
+        assert res_ds_mut.status_code == 403, f"Expected 403, got {res_ds_mut.status_code}"
+        print_pass("Dataset creation blocked: HTTP 403 Forbidden ('Public demo access is strictly read-only')")
+
+        res_exp_mut = await client.post(
+            "/v1/experiments",
+            json={"name": "Attacker Exp", "dataset_id": str(uuid.uuid4()), "agent_name": "agent"},
+        )
+        assert res_exp_mut.status_code == 403
+        print_pass("Experiment creation blocked: HTTP 403 Forbidden")
+
+        res_safety_mut = await client.post(
+            "/v1/safety/campaigns",
+            json={"name": "Attacker Campaign", "agent_name": "agent"},
+        )
+        assert res_safety_mut.status_code == 403
+        print_pass("Safety campaign creation blocked: HTTP 403 Forbidden")
+
+        res_alert_mut = await client.post(
+            "/v1/alerts/rules",
+            json={"name": "Attacker Rule", "metric": "error_rate", "threshold": 0.1},
+        )
+        assert res_alert_mut.status_code == 403
+        print_pass("Alert rule creation blocked: HTTP 403 Forbidden")
+
+        res_ingest_mut = await client.post("/v1/ingest/spans", json={"runs": [], "spans": []})
+        assert res_ingest_mut.status_code in (401, 403)
+        print_pass(f"Telemetry ingestion blocked: HTTP {res_ingest_mut.status_code}")
+
+        res_task_cancel = await client.post("/v1/tasks/any-task-id/cancel")
+        assert res_task_cancel.status_code == 403
+        print_pass("Task cancellation blocked: HTTP 403 Forbidden")
+
+        # Step 4: Cross-Tenant Isolation Enforcement
+        print_step(4, "Cross-Tenant Access Boundary Verification")
+        other_tenant_id = str(uuid.uuid4())
+        res_cross = await client.get(f"/v1/runs?project_id={other_tenant_id}")
+        assert res_cross.status_code == 403, f"Expected 403, got {res_cross.status_code}"
+        print_pass("Cross-tenant query safely rejected with HTTP 403 Forbidden")
+
+        print(f"\n{BOLD}{GREEN}======================================================{RESET}")
+        print(f"{BOLD}{GREEN} [SUCCESS] Public Demo Verification Passed!           {RESET}")
+        print(f"{BOLD}{GREEN} Read-only enforcement and tenant boundaries intact.  {RESET}")
+        print(f"{BOLD}{GREEN}======================================================{RESET}\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="TraceHarbor End-to-End Product Demonstration")
     parser.add_argument("--base-url", default=None, help="Base URL of TraceHarbor API (e.g. http://127.0.0.1:8000)")
     parser.add_argument("--in-memory", action="store_true", help="Force in-memory ASGI test mode")
+    parser.add_argument("--verify-demo", action="store_true", help="Verify public read-only demo access on hosted server")
     args = parser.parse_args()
 
-    asyncio.run(run_walkthrough(base_url=args.base_url, in_memory=args.in_memory))
+    if args.verify_demo:
+        asyncio.run(run_public_demo_verification(base_url=args.base_url))
+    else:
+        asyncio.run(run_walkthrough(base_url=args.base_url, in_memory=args.in_memory))
 
 
 if __name__ == "__main__":

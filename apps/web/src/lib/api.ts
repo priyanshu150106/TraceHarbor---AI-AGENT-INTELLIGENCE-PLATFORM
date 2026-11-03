@@ -97,7 +97,12 @@ export function clearStoredApiKey(): void {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-  const apiKey = getStoredApiKey() || process.env.NEXT_PUBLIC_API_KEY || null;
+  // User-stored key (settings modal) > safe demo key > fallback public key > null (unauthenticated demo mode)
+  const apiKey =
+    getStoredApiKey() ||
+    process.env.NEXT_PUBLIC_DEMO_KEY ||
+    process.env.NEXT_PUBLIC_API_KEY ||
+    null;
 
   const headers: Record<string, string> = {
     Accept: "application/json",

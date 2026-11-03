@@ -98,7 +98,7 @@ class ClusterStatusUpdateRequest(BaseModel):
 
 
 class SimilarFailureSearchRequest(BaseModel):
-    query_text: str | None = Field(None, description="Raw or normalized error message to query")
+    query_text: str | None = Field(None, max_length=1000, description="Raw or normalized error message to query")
     event_id: uuid.UUID | None = Field(None, description="Existing failure event ID to find matches for")
     threshold: float = Field(0.70, ge=0.0, le=1.0, description="Minimum similarity score [0.0, 1.0]")
     limit: int = Field(20, ge=1, le=100, description="Maximum candidate matches to return")

@@ -110,9 +110,21 @@ def test_ssrf_validation_rejects_private_and_loopback_ips() -> None:
 
 
 def test_startup_configuration_validation_runs() -> None:
-    """Verify startup validation runs without throwing exceptions on default config."""
-    # Should not raise exception
-    _validate_startup_configuration()
+    """Verify startup validation runs on valid development and production configs."""
+    original_debug = settings.debug
+    original_origins = settings.cors_origins
+    try:
+        # In development mode, default config succeeds
+        settings.debug = True
+        _validate_startup_configuration()
+
+        # In production mode with configured origins, validation succeeds
+        settings.debug = False
+        settings.cors_origins = ["https://app.traceharbor.com"]
+        _validate_startup_configuration()
+    finally:
+        settings.debug = original_debug
+        settings.cors_origins = original_origins
 
 
 @pytest.mark.asyncio

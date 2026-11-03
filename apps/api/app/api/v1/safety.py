@@ -112,8 +112,12 @@ async def get_safety_overview(
         sev_summary = c.severity_summary or {}
         for sev, val in sev_summary.items():
             if sev in severity_totals:
-                severity_totals[sev]["total"] += val.get("total", 0)
-                severity_totals[sev]["failed"] += val.get("failed", 0)
+                if isinstance(val, dict):
+                    severity_totals[sev]["total"] += val.get("total", 0)
+                    severity_totals[sev]["failed"] += val.get("failed", 0)
+                elif isinstance(val, (int, float)):
+                    severity_totals[sev]["total"] += int(val)
+                    severity_totals[sev]["failed"] += int(val)
 
     # Compute pass rates for categories
     for val in category_totals.values():

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_authenticated_api_key
+from app.core.auth import get_authenticated_api_key, is_demo_api_key
 from app.core.database import get_db
 from app.models.api_key import ApiKey
 from app.models.run import Run
@@ -74,6 +74,12 @@ async def ingest_spans(
     Validates payload integrity, checks parent-child span hierarchy,
     enforces project tenant isolation, and writes atomically.
     """
+    if is_demo_api_key(auth_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo credentials are restricted to read-only access. Telemetry ingestion is prohibited.",
+        )
+
     start_time = time.perf_counter()
     project_id = auth_key.project_id
     total_items = len(payload.runs) + len(payload.spans)
