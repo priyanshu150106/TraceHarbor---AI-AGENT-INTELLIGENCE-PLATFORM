@@ -156,7 +156,7 @@ npm run build
 
 ### End-to-End Demonstration Script
 ```bash
-# Runs the full 8-step lifecycle walkthrough in-process
+# Runs the full 9-step lifecycle walkthrough in-process
 python scripts/demo_walkthrough.py --in-memory
 
 # Or against a running local or staging server

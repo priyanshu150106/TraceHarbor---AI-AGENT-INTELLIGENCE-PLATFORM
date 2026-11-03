@@ -1,0 +1,66 @@
+flowchart TB
+    %% TraceHarbor System Architecture Diagram
+    %% Release Candidate: v0.1.0-rc2
+
+    subgraph IngestionFlow["1. Client Telemetry & Ingestion"]
+        direction TB
+        AgentApp["Customer AI Application<br/>(LangChain, LlamaIndex, Custom Agents)"]
+        DemoAgent["Synthetic Demo Agent<br/>(scripts/demo_walkthrough.py)"]
+        SDK["TraceHarbor Python SDK (v0.1.0)<br/>• @traceable / context manager<br/>• Auto span nesting & execution timing<br/>• Payload truncation (64KB)<br/>• In-memory batching & async flush"]
+        
+        AgentApp --> SDK
+        DemoAgent --> SDK
+    end
+
+    subgraph PresentationFlow["2. Management & Operator Console"]
+        direction TB
+        Dashboard["Next.js 14 Dashboard (apps/web)<br/>• Real-time Analytics & Latency Charts<br/>• Trace & Nested Span Waterfall View<br/>• Regression & Safety Scorecard Diffs<br/>• Failure Cluster Triage Kanban<br/>• Alert Rule & Webhook Configuration"]
+        UserBrowser["Operator Browser<br/>(http://localhost:3000)"]
+        UserBrowser <--> Dashboard
+    end
+
+    subgraph APILayer["3. FastAPI Application Server (apps/api — Python 3.11+)"]
+        direction TB
+        AuthMiddleware["Auth & Tenant Isolation Middleware<br/>• SHA-256 API Key Verification • Project-Scoped Context Enforcement (HTTP 401/403)"]
+
+        subgraph CoreEngines["Core Service Subsystems"]
+            direction LR
+            IngestAPI["Telemetry Ingestion<br/>• /v1/ingest/spans<br/>• /v1/runs<br/>• Batch Span Parsing"]
+            EvalRunner["Evaluation & Regression<br/>• 10 Deterministic Evaluators<br/>• LLM-as-Judge Support<br/>• Baseline vs Candidate Diff"]
+            SafetyRunner["Safety Red-Teaming<br/>• 7 Adversarial Taxonomies<br/>• 8 Automated Evaluators<br/>• Attack Scorecard"]
+            FailSync["Failure Intelligence<br/>• Regex PII & Secret Redaction<br/>• Stack Trace Normalization<br/>• pgvector Semantic Clustering"]
+            AlertEvaluator["Alerting & Webhooks<br/>• Error Rate & Latency P95<br/>• Cooldown Suppression<br/>• SSRF-Safe Webhook Dispatch"]
+            TaskMgr["Task Lifecycle<br/>• Non-blocking Workers<br/>• Progress Tracking (/v1/tasks)"]
+        end
+
+        AuthMiddleware --> CoreEngines
+    end
+
+    subgraph DataLayer["4. Storage & Vector Infrastructure"]
+        direction LR
+        Postgres[("PostgreSQL 16 Storage<br/>• Relational Schema (Runs, Spans, Datasets, Alerts)<br/>• Alembic Migrations (5 versions)<br/>• Strict Project Foreign Key Constraints")]
+        VectorStore[("pgvector Vector Store<br/>• Failure Embedding Vectors (64-1536 dim)<br/>• Cosine Distance Similarity Index")]
+        RedisCache[("Redis 7.2 (Optional)<br/>• Distributed Cache & Cooldowns<br/>• Task Queue Broker")]
+    end
+
+    %% Cross-Subsystem Data Connections
+    SDK -- "Batch Telemetry (HTTP POST)" --> IngestAPI
+    Dashboard -- "Authenticated API Queries (X-API-Key)" --> AuthMiddleware
+    
+    IngestAPI -- "Persist Runs & Spans" --> Postgres
+    EvalRunner -- "Read Benchmarks & Record Results" --> Postgres
+    SafetyRunner -- "Log Campaign Diffs" --> Postgres
+    FailSync -- "Store Sanitized Failures" --> Postgres
+    FailSync -- "Index & Query Embeddings" --> VectorStore
+    AlertEvaluator -- "Query Metrics & History" --> Postgres
+    TaskMgr -- "Track Background Jobs" --> Postgres
+
+    classDef client fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef api fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
+    classDef storage fill:#090d16,stroke:#34d399,stroke-width:2px,color:#f8fafc;
+    classDef frontend fill:#1e1e38,stroke:#fbbf24,stroke-width:2px,color:#f8fafc;
+
+    class AgentApp,DemoAgent,SDK client;
+    class AuthMiddleware,IngestAPI,EvalRunner,SafetyRunner,FailSync,AlertEvaluator,TaskMgr api;
+    class Postgres,VectorStore,RedisCache storage;
+    class Dashboard,UserBrowser frontend;
