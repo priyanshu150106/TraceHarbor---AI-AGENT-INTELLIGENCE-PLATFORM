@@ -14,12 +14,6 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
-from scripts.seed_demo_data import (
-    DEMO_PROJECT_ID,
-    DEMO_USER_ID,
-    purge_demo_tenant,
-    seed_demo_data,
-)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +21,12 @@ from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.run import Run
 from app.models.user import User
+from scripts.seed_demo_data import (
+    DEMO_PROJECT_ID,
+    DEMO_USER_ID,
+    purge_demo_tenant,
+    seed_demo_data,
+)
 
 
 @pytest.mark.asyncio
