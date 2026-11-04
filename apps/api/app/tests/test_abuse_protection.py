@@ -389,6 +389,18 @@ def test_get_client_ip_cf_connecting_ip_precedence() -> None:
     assert get_client_ip(req) == "203.0.113.77"
 
 
+def test_get_client_ip_vercel_forwarded_for() -> None:
+    """X-Vercel-Forwarded-For injected by Vercel edge takes precedence over untrusted headers."""
+    req = _build_request(
+        headers={
+            "X-Vercel-Forwarded-For": "198.51.100.42",
+            "X-Forwarded-For": "10.0.0.1",
+        },
+        client_host="127.0.0.1",
+    )
+    assert get_client_ip(req) == "198.51.100.42"
+
+
 @pytest.mark.asyncio
 async def test_chunked_streaming_request_body_size_limit(client: AsyncClient) -> None:
     """

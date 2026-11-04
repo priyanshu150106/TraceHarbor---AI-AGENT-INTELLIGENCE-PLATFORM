@@ -1,0 +1,10 @@
+# Exclude tests, development caches, and build tools from Vercel function bundle
+app/tests/
+.pytest_cache/
+.ruff_cache/
+Dockerfile
+.dockerignore
+*.pyc
+__pycache__/
+.coverage
+htmlcov/

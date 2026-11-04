@@ -124,6 +124,13 @@ def get_client_ip(request: Request) -> str:
         if is_valid_ip(candidate):
             return candidate
 
+    # Vercel Edge specifically injects X-Vercel-Forwarded-For or overwrites X-Forwarded-For
+    vercel_forwarded_for = request.headers.get("X-Vercel-Forwarded-For")
+    if vercel_forwarded_for:
+        candidate = vercel_forwarded_for.split(",")[0].strip()
+        if is_valid_ip(candidate):
+            return candidate
+
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         # Split hops: e.g. "spoofed_client_ip, real_client_ip, proxy_ip"

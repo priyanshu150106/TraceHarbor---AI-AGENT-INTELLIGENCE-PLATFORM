@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_demo_per_minute: int = 60
     rate_limit_auth_per_minute: int = 300
-    max_request_body_bytes: int = 10 * 1024 * 1024  # 10 MB
+    max_request_body_bytes: int = 4 * 1024 * 1024  # 4 MB (below Vercel 4.5 MB serverless limit)
 
     # ---------- Reverse Proxy & Trusted Forwarding ----------
     trusted_proxies: list[str] = ["127.0.0.1", "::1", "testclient"]

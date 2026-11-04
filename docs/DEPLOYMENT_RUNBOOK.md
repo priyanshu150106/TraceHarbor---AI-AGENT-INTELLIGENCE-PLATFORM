@@ -53,13 +53,13 @@ flowchart TD
 
 ## 2. Strict Zero-Cost Provider Constraints
 
-| Provider | Service | Tier | Monthly Cost | Verification / Guardrails |
+| Provider | Service | Tier | Monthly Cost | Free Quotas & Platform Boundaries |
 |:---|:---|:---|:---:|:---|
-| **Vercel** | Next.js Frontend (`apps/web`) | Hobby | **$0.00** | No paid addons. Built-in CDN & SSL. |
-| **Vercel** | FastAPI Backend (`apps/api`) | Hobby | **$0.00** | Serverless Python function (`api/index.py`). |
-| **Neon** | PostgreSQL 16 + pgvector | Free | **$0.00** | 1 project, 0.5 GiB storage, 100 CU-hours. No credit card required. |
+| **Vercel** | Next.js Frontend (`apps/web`) | Hobby | **$0.00** | 100 GB bandwidth, free SSL, global Edge CDN. |
+| **Vercel** | FastAPI Backend (`apps/api`) | Hobby | **$0.00** | Python 3.12 Serverless Function, 4.5 MB request/response ceiling, 10s default execution limit. |
+| **Neon** | PostgreSQL 16 + pgvector | Free | **$0.00** | 1 project, **1 GB storage**, **100 CU-hours/mo**, auto-suspend when idle. |
 | **GitHub** | Repository & Actions CI | Free | **$0.00** | 2,000 free Actions CI minutes/month. |
-| **TOTAL** | **All Services** | **Free** | **$0.00 / mo** | **Strictly ₹0.00 / month.** |
+| **TOTAL** | **All Services** | **Free** | **$0.00 / mo** | **Strictly ₹0.00 / month ($0.00 USD).** |
 
 ---
 
@@ -67,41 +67,38 @@ flowchart TD
 
 | Service Tier | Provider | Service Name | Service Type | Runtime / Engine |
 |:---|:---|:---|:---|:---|
-| **Database** | Neon | `traceharbor-db` | Serverless PostgreSQL | PostgreSQL 16 with pgvector |
-| **Backend API** | Render | `traceharbor-api` | Web Service | Python 3 (or Docker) |
+| **Database** | Neon | `traceharbor-prod` | Serverless PostgreSQL | PostgreSQL 16 with pgvector |
+| **Backend API** | Vercel | `traceharbor-api` | Serverless Function | Python 3.12 (FastAPI via `api/index.py`) |
 | **Frontend** | Vercel | `traceharbor-web` | Web Application | Next.js 14 (Node.js 20) |
 
 ---
 
-## 4. Selected Hosting Plans
+## 4. Platform Constraints & Operational Boundaries
 
-Two hosting configurations are available:
-
-- **Option A (100% Free / Zero-Dollar Tier)**:
-  - Neon: Free Tier ($0/mo)
-  - Render: Free Web Service ($0/mo)
-  - Vercel: Hobby Tier ($0/mo)
-  - *Trade-off*: Render free instance sleeps after 15 minutes of inactivity; first request encounters a 30–60 second cold start delay.
-- **Option B (Recommended Recruiter Demo Tier)**:
-  - Neon: Free Tier ($0/mo)
-  - Render: Starter Web Service ($7.00/mo)
-  - Vercel: Hobby Tier ($0/mo)
-  - *Advantage*: Always-on backend; zero cold starts; instantaneous response times for recruiters and reviewers.
+1. **Payload Size Boundaries**:
+   - Vercel Serverless Functions enforce a strict **4.5 MB** maximum payload limit for request bodies and responses.
+   - TraceHarbor configures `max_request_body_bytes = 4194304` (4 MB) in `apps/api/app/core/config.py`, rejecting oversized uploads before the platform threshold is crossed.
+   - All dataset and telemetry batch endpoints enforce strict pagination (`limit` default 50, maximum 100), keeping typical responses under 50 KB.
+2. **Execution Duration**:
+   - Vercel Hobby serverless functions have a 10s default execution timeout (max 60s).
+   - Long-running async background tasks do not persist indefinitely; mutating long-running operations are disabled for public demo users (HTTP 403) and immediate responses are returned.
+3. **Client IP & Anti-Spoofing on Vercel**:
+   - Vercel's edge network overwrites `X-Forwarded-For` with the true connecting client IP address, preventing client-side spoofing.
+   - In addition, Vercel injects `X-Vercel-Forwarded-For`.
+   - The rate limiter resolves `X-Vercel-Forwarded-For` and Vercel's verified `X-Forwarded-For` when `PROXY_HEADERS_ENABLED=true`. Untrusted direct client connections ignore forwarded headers.
+4. **Rate Limiting Concurrency**:
+   - The in-memory sliding window rate limiter operates within each ephemeral serverless instance. Under free-tier serverless auto-scaling, this protects individual worker containers from query flooding without requiring a billable Redis cluster.
 
 ---
 
-## 5. Current Price Estimates & Currency Conversion
+## 5. Zero-Cost Free Tier Ledger
 
-*Exchange Rate Date*: November 2024 / Market Mid-Rate (~₹84.50 – ₹94.50 per 1 USD)
-
-| Service | Plan | Monthly Cost (USD) | Monthly Cost (INR) | Free Tier Limitations & Sleep Behavior |
+| Service | Plan | Monthly Cost (USD) | Monthly Cost (INR) | Free Tier Limitations & Quotas |
 |:---|:---|:---:|:---:|:---|
-| **Neon PostgreSQL** | Free | $0.00 | ₹0 | 1 GB storage, 100 CU-hours/month, sleeps after 5 min idle (wakes in ~1s). |
-| **Render Backend (Option A)** | Free | $0.00 | ₹0 | 512 MB RAM, shared CPU, 750 free instance hours/mo, sleeps after 15 min idle (30–60s cold start). |
-| **Render Backend (Option B)** | Starter | $7.00 | ~₹660 | 512 MB RAM, 0.5 CPU, **always-on (no sleeping)**, free TLS, custom domains, DDoS filtering. |
-| **Vercel Frontend** | Hobby | $0.00 | ₹0 | 100 GB bandwidth, unlimited serverless function invocations within hobby limits. |
-| **TOTAL (Option A - Free)** | Free | **$0.00 / mo** | **₹0 / mo** | Cold start latency on idle visits. |
-| **TOTAL (Option B - Starter)**| Paid | **$7.00 / mo** | **~₹660 / mo** | **Always-on, zero cold starts, recruiter-optimized.** |
+| **Neon PostgreSQL** | Free | $0.00 | ₹0 | **1 GB storage**, **100 CU-hours/month**, auto-suspends after 5 min idle (wakes in ~1s). |
+| **Vercel Backend** | Hobby | $0.00 | ₹0 | 4.5 MB payload limit, 10s execution duration, 100 GB bandwidth, serverless Python. |
+| **Vercel Frontend** | Hobby | $0.00 | ₹0 | 100 GB bandwidth, global Edge caching, automatic HTTPS. |
+| **TOTAL** | Free | **$0.00 / mo** | **₹0 / mo** | **100% Zero-Cost Portfolio Demonstration.** |
 
 ---
 
@@ -271,12 +268,12 @@ The frontend is deployed on Vercel's Edge/Next.js hosting with zero hosting cost
 
 ## 13. CORS Configuration
 
-- Render FastAPI requires explicit domains in `CORS_ORIGINS`.
+- FastAPI backend requires explicit origin URLs in `CORS_ORIGINS`.
 - Wildcards (`*`) are prohibited and rejected at startup when `DEBUG=false`.
-- Ensure exact matching without trailing slash: `https://traceharbor.vercel.app`.
-- If custom domains are added later, add them comma-separated:
+- Ensure exact matching without trailing slash: `https://traceharbor-web.vercel.app`.
+- If custom domains or preview deployments are added later, add them comma-separated:
   ```text
-  CORS_ORIGINS=https://traceharbor.vercel.app,https://traceharbor.dev
+  CORS_ORIGINS=https://traceharbor-web.vercel.app
   ```
 
 ---
@@ -287,13 +284,13 @@ Test backend probes immediately after deployment:
 
 ```bash
 # 1. Liveness probe (returns 200 alive)
-curl -i https://traceharbor-api.onrender.com/healthz
+curl -i https://traceharbor-api.vercel.app/healthz
 
 # 2. Readiness probe (validates database connectivity)
-curl -i https://traceharbor-api.onrender.com/readyz
+curl -i https://traceharbor-api.vercel.app/readyz
 
 # 3. Platform metadata
-curl -i https://traceharbor-api.onrender.com/health
+curl -i https://traceharbor-api.vercel.app/health
 ```
 
 ---
@@ -304,18 +301,18 @@ Verify that public unauthenticated reads succeed while mutations and cross-tenan
 
 ```bash
 # 1. Unauthenticated read of synthetic runs (Must return 200 OK)
-curl -i https://traceharbor-api.onrender.com/v1/runs
+curl -i https://traceharbor-api.vercel.app/v1/runs
 
 # 2. Unauthenticated read of synthetic failure clusters (Must return 200 OK)
-curl -i https://traceharbor-api.onrender.com/v1/failures/clusters
+curl -i https://traceharbor-api.vercel.app/v1/failures/clusters
 
 # 3. Attempt mutation without key (Must return 403 Forbidden)
-curl -i -X POST https://traceharbor-api.onrender.com/v1/datasets \
+curl -i -X POST https://traceharbor-api.vercel.app/v1/datasets \
   -H "Content-Type: application/json" \
   -d '{"name": "Unauthorized Dataset"}'
 
 # 4. Attempt telemetry ingestion without live key (Must return 401/403)
-curl -i -X POST https://traceharbor-api.onrender.com/v1/ingest/spans \
+curl -i -X POST https://traceharbor-api.vercel.app/v1/ingest/spans \
   -H "Content-Type: application/json" \
   -d '{"runs": [], "spans": []}'
 ```

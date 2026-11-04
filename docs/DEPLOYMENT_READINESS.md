@@ -3,7 +3,7 @@
 **Version**: v0.1.0-rc2  
 **Implementation Phase**: Phase 12 — Deployment Preflight and Release Package  
 **Status**: Ready for Deployment Review (No Cloud Resources Provisioned, Preflight Audit & Local Verification Only)  
-**Proposed Hosting**: Vercel (Next.js Frontend) + Render (FastAPI Backend) + Neon (PostgreSQL 16 + pgvector)  
+**Proposed Hosting**: Vercel Project 1 (Next.js Frontend, Hobby $0) + Vercel Project 2 (FastAPI Serverless Backend, Hobby $0) + Neon (PostgreSQL 16 + pgvector, Free $0)  
 
 ---
 
@@ -207,41 +207,44 @@ DATABASE_URL="postgresql+asyncpg://<USER>:<PASS>@<NEON_HOST>/<DB>?sslmode=requir
 DATABASE_URL="postgresql+asyncpg://<USER>:<PASS>@<NEON_HOST>/<DB>?sslmode=require" python scripts/seed_demo_data.py --verify-only
 ```
 
-### Step 3: Deploy FastAPI Backend on Render
-1. Create a **Web Service** on Render pointing to the GitHub repository:
-   - **Environment**: Python 3
+### Step 3: Deploy FastAPI Backend on Vercel (Project 2 — $0.00/mo)
+1. In Vercel Dashboard, create a new project pointing to the GitHub repository:
+   - **Framework Preset**: Other
    - **Root Directory**: `apps/api`
-   - **Build Command**: `pip install -e .`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'`
-   - **Plan**: Starter ($7/mo) or Free instance (1 replica).
-2. Configure Environment Variables in Render Dashboard:
-   - `DATABASE_URL`: `postgresql+asyncpg://<USER>:<PASS>@<NEON_HOST>/<DB>?sslmode=require`
+   - **Plan**: Hobby ($0.00)
+2. Configure Environment Variables in Vercel Dashboard:
+   - `DATABASE_URL`: `postgresql+asyncpg://<USER>:<PASS>@<NEON_HOST>-pooler.<REGION>.aws.neon.tech/neondb?sslmode=require`
+   - `DB_POOL_SIZE`: `2`
+   - `DB_MAX_OVERFLOW`: `3`
+   - `DB_POOL_RECYCLE`: `300`
    - `JWT_SECRET`: `[Cryptographic 32-byte string]`
    - `DEBUG`: `false`
    - `DEMO_MODE`: `true`
    - `DEMO_PROJECT_ID`: `00000000-0000-4000-a000-000000000001`
    - `PROXY_HEADERS_ENABLED`: `true`
    - `CORS_ORIGINS`: `https://<your-vercel-domain>.vercel.app`
-3. Verify Render Health Check:
-   - **Health Check Path**: `/healthz`
+   - `MAX_REQUEST_BODY_BYTES`: `4194304`
+3. Verify Vercel Health Check:
+   - Access: `/healthz` and `/readyz`
 
-### Step 4: Deploy Next.js Frontend on Vercel
+### Step 4: Deploy Next.js Frontend on Vercel (Project 1 — $0.00/mo)
 1. Import repository in [Vercel Dashboard](https://vercel.com).
 2. Configure Project Settings:
    - **Framework Preset**: Next.js
    - **Root Directory**: `apps/web`
    - **Build Command**: `npm run build`
    - **Output Directory**: `.next`
+   - **Plan**: Hobby ($0.00)
 3. Configure Environment Variables in Vercel:
-   - `NEXT_PUBLIC_API_BASE_URL`: `https://<your-render-service>.onrender.com`
-   - `NEXT_PUBLIC_API_URL`: `https://<your-render-service>.onrender.com`
-4. Deploy and record the assigned Vercel URL (e.g. `https://traceharbor.vercel.app`).
-5. Update `CORS_ORIGINS` in Render if the initial Vercel domain differed.
+   - `NEXT_PUBLIC_API_BASE_URL`: `https://<your-backend-service>.vercel.app`
+   - `NEXT_PUBLIC_API_URL`: `https://<your-backend-service>.vercel.app`
+4. Deploy and record the assigned Vercel URL (e.g. `https://traceharbor-web.vercel.app`).
+5. Update `CORS_ORIGINS` in the backend project if the initial Vercel domain differed.
 
 ### Step 5: Post-Deployment Verification Walkthrough
 Run the non-mutating demo walkthrough against the hosted API:
 ```bash
-python scripts/demo_walkthrough.py --base-url https://<your-render-service>.onrender.com --verify-demo
+python scripts/demo_walkthrough.py --base-url https://<your-backend-service>.vercel.app --verify-demo
 ```
 Expected output:
 - Probes `/healthz` and `/readyz`: `200 OK`.
