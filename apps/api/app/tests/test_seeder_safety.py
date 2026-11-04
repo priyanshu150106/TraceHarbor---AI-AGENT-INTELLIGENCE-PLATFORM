@@ -14,6 +14,12 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
+from scripts.seed_demo_data import (
+    DEMO_PROJECT_ID,
+    DEMO_USER_ID,
+    purge_demo_tenant,
+    seed_demo_data,
+)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,13 +27,6 @@ from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.run import Run
 from app.models.user import User
-from scripts.seed_demo_data import (
-    DEMO_PROJECT_ID,
-    DEMO_USER_ID,
-    purge_demo_tenant,
-    seed_demo_data,
-    verify_demo_tenant,
-)
 
 
 @pytest.mark.asyncio
@@ -96,9 +95,11 @@ async def test_seeder_failure_rollback(db_session: AsyncSession) -> None:
     await db_session.commit()
 
     # Simulate an error while adding failure events
-    with patch("scripts.seed_demo_data.FailureEvent", side_effect=RuntimeError("Simulated DB Crash")):
-        with pytest.raises(RuntimeError, match="Simulated DB Crash"):
-            await seed_demo_data(db_session, reset=True)
+    with (
+        patch("scripts.seed_demo_data.FailureEvent", side_effect=RuntimeError("Simulated DB Crash")),
+        pytest.raises(RuntimeError, match="Simulated DB Crash"),
+    ):
+        await seed_demo_data(db_session, reset=True)
 
     # Verify rollback: no half-seeded demo project should exist after rollback
     proj = await db_session.get(Project, DEMO_PROJECT_ID)

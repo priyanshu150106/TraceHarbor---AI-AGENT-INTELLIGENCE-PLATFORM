@@ -2,7 +2,6 @@
 TraceHarbor API — Projects Read Endpoints
 """
 
-import uuid
 
 from fastapi import APIRouter, Depends, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials

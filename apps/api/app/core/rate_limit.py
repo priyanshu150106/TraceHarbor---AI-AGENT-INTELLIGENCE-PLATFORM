@@ -8,7 +8,6 @@ Protects the API and public portfolio demo from query flooding, scraping, and Do
 import ipaddress
 import time
 from collections import OrderedDict
-from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -131,9 +130,8 @@ def get_client_ip(request: Request) -> str:
         hops = [h.strip() for h in forwarded_for.split(",") if h.strip()]
         # Traverse right-to-left: the trusted reverse proxy appends the connecting client IP
         for candidate in reversed(hops):
-            if is_valid_ip(candidate):
-                if candidate not in settings.trusted_proxies or len(hops) == 1:
-                    return candidate
+            if is_valid_ip(candidate) and (candidate not in settings.trusted_proxies or len(hops) == 1):
+                return candidate
         # If all valid candidates were trusted proxies, return the rightmost valid one
         for candidate in reversed(hops):
             if is_valid_ip(candidate):

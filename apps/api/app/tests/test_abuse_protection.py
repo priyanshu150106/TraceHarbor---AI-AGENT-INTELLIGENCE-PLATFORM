@@ -21,16 +21,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
-from app.core.auth import resolve_project_id
 from app.core.config import settings
 from app.core.logging import redact_sensitive_data
-from app.core.rate_limit import BoundedSlidingWindowLimiter, get_client_ip, is_valid_ip, rate_limiter
+from app.core.rate_limit import (
+    BoundedSlidingWindowLimiter,
+    get_client_ip,
+    is_valid_ip,
+    rate_limiter,
+)
 from app.main import _validate_startup_configuration
 from app.models.api_key import ApiKey
 from app.models.project import Project
 from app.models.user import User
 
-DEMO_KEY_HASH = hashlib.sha256("th_demo_abuse_test_key".encode("utf-8")).hexdigest()
+DEMO_KEY_HASH = hashlib.sha256(b"th_demo_abuse_test_key").hexdigest()
 
 
 @pytest.fixture

@@ -1,54 +1,49 @@
 # TraceHarbor — Cloud Deployment Runbook
 
-**Document Version**: 1.0.0  
-**Target Release**: v0.1.0-rc2 / v0.1.0  
-**Target Hosting Stack**:
-- **Database**: Neon (PostgreSQL 16 + pgvector)
-- **Backend API**: Render (FastAPI ASGI Web Service)
-- **Frontend Dashboard**: Vercel (Next.js 14 App Router)
-**Status**: Approval-Gated Pre-Deployment Runbook  
+**Document Version**: 2.0.0 (Zero-Cost Edition)  
+**Target Release**: v0.1.0  
+**Target Hosting Stack ($0.00 / mo Budget)**:
+- **Database**: Neon (PostgreSQL 16 + pgvector, Free Tier — $0.00/mo)
+- **Backend API**: Vercel Project 2 (FastAPI Serverless via `@vercel/python`, Hobby Tier — $0.00/mo)
+- **Frontend Dashboard**: Vercel Project 1 (Next.js 14 App Router, Hobby Tier — $0.00/mo)
+- **CI / Source Repository**: GitHub Free Tier ($0.00/mo)
+**Total Monthly Cost**: **$0.00 / month** (₹0.00 / month)  
+**Status**: Zero-Cost Deployment Runbook  
 
 ---
 
-## 1. Deployment Architecture
+## 1. Zero-Cost Target Architecture ($0.00/mo)
 
-TraceHarbor uses a decoupled, serverless/cloud architecture designed for performance, strict multi-tenant isolation, and zero-risk public demonstration:
+TraceHarbor is architected for high security, strict tenant isolation, and zero operating costs on standard cloud free tiers:
 
 ```mermaid
 flowchart TD
-    subgraph Users["End Users & Public Reviewers"]
-        Browser["Web Browser (Recruiter / Visitor)"]
+    subgraph PublicUsers["Public Reviewers & Recruiters"]
+        Browser["Web Browser (Portfolio Visitor)"]
         Tester["Operator / CI Walkthrough"]
     end
 
-    subgraph VercelEdge["Vercel Global Edge Network"]
-        VercelApp["Next.js 14 Operator Dashboard<br/>(Static & Dynamic SSR Routes)"]
+    subgraph VercelFrontend["Vercel Project 1: Frontend (Hobby Tier — $0)"]
+        NextJS["Next.js 14 Dashboard (apps/web)<br/>React 18, Tailwind CSS, Lucide Icons<br/>Static + SSR Routes"]
     end
 
-    subgraph CloudflareRender["Cloudflare Edge + Render Reverse Proxy"]
-        WAF["Cloudflare Edge DDoS Protection<br/>(Provides CF-Connecting-IP)"]
-        LoadBalancer["Render Load Balancer / Proxy"]
-    end
-
-    subgraph RenderBackend["Render Web Service (Single Instance)"]
-        FastAPI["FastAPI ASGI Server (Python 3.11+ / Uvicorn)<br/>--proxy-headers --forwarded-allow-ips='*'"]
-        RateLimiter["Bounded LRU Sliding Window Rate Limiter<br/>(10,000 keys, anti-spoofing)"]
-        BodyGuard["Pure ASGI Body Size Guard (10 MB max)"]
+    subgraph VercelBackend["Vercel Project 2: Backend (Hobby Tier — $0)"]
+        VercelPython["FastAPI Serverless Function (apps/api)<br/>Entrypoint: api/index.py<br/>Native Python 3.12 Runtime"]
+        RateLimiter["Bounded LRU Sliding Window Rate Limiter<br/>(Anti-spoofing reverse proxy support)"]
+        BodyGuard["Pure ASGI Body Size Guard (4.5 MB serverless limit)"]
         AuthShield["Auth Shield & Demo Scoper (DEMO_MODE=true)"]
     end
 
-    subgraph NeonCloud["Neon Serverless PostgreSQL 16"]
+    subgraph NeonCloud["Neon Cloud: Database (Free Tier — $0)"]
         PgPooler["Neon Connection Pooler (PgBouncer)"]
         PostgresDB[("PostgreSQL 16 Database<br/>(Strict project_id scoping)")]
         PgVectorExt["pgvector Extension<br/>(Dense Failure Embeddings)"]
     end
 
-    Browser -->|HTTPS| VercelApp
-    VercelApp -->|HTTPS / REST API| WAF
-    Tester -->|Non-Mutating Verification| WAF
-    WAF --> LoadBalancer
-    LoadBalancer --> FastAPI
-    FastAPI --> RateLimiter --> BodyGuard --> AuthShield
+    Browser -->|HTTPS| NextJS
+    NextJS -->|REST API Requests| VercelPython
+    Tester -->|Read-Only Verification| VercelPython
+    VercelPython --> RateLimiter --> BodyGuard --> AuthShield
     AuthShield -->|postgresql+asyncpg| PgPooler
     PgPooler --> PostgresDB
     PostgresDB --- PgVectorExt
@@ -56,14 +51,15 @@ flowchart TD
 
 ---
 
-## 2. Provider Account Requirements
+## 2. Strict Zero-Cost Provider Constraints
 
-Before initiating cloud provisioning, ensure you have accounts with:
-
-1. **GitHub**: Access to [TraceHarbor Repository](https://github.com/priyanshu150106/TraceHarbor---AI-AGENT-INTELLIGENCE-PLATFORM.git) with permission to create release branches.
-2. **Neon Console**: Account at [console.neon.tech](https://console.neon.tech). Free tier available with no credit card required.
-3. **Render Dashboard**: Account at [dashboard.render.com](https://dashboard.render.com). Free or Starter plan. (Credit card required for Starter plan, free tier requires no card).
-4. **Vercel Dashboard**: Account at [vercel.com](https://vercel.com). Hobby tier available for personal/open-source projects.
+| Provider | Service | Tier | Monthly Cost | Verification / Guardrails |
+|:---|:---|:---|:---:|:---|
+| **Vercel** | Next.js Frontend (`apps/web`) | Hobby | **$0.00** | No paid addons. Built-in CDN & SSL. |
+| **Vercel** | FastAPI Backend (`apps/api`) | Hobby | **$0.00** | Serverless Python function (`api/index.py`). |
+| **Neon** | PostgreSQL 16 + pgvector | Free | **$0.00** | 1 project, 0.5 GiB storage, 100 CU-hours. No credit card required. |
+| **GitHub** | Repository & Actions CI | Free | **$0.00** | 2,000 free Actions CI minutes/month. |
+| **TOTAL** | **All Services** | **Free** | **$0.00 / mo** | **Strictly ₹0.00 / month.** |
 
 ---
 
@@ -210,59 +206,66 @@ DATABASE_URL="postgresql+asyncpg://<USER>:<PASS>@<HOST>/<DB>?sslmode=require" py
 
 ---
 
-## 11. Render Deployment Settings
+## 11. Vercel Backend Deployment (Project 2 — $0.00/mo)
 
-1. In [Render Dashboard](https://dashboard.render.com), click **New +** -> **Web Service**.
-2. Connect your GitHub repository and select the approved deployment branch.
-3. Configure settings:
-   - **Name**: `traceharbor-api`
-   - **Region**: Match Neon region (e.g. `Oregon (US West)` or `Ohio (US East)`)
-   - **Root Directory**: `apps/api`
-   - **Runtime**: `Python 3`
-   - **Build Command**: `pip install -e .`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'`
-   - **Instance Type**: `Starter` ($7/mo) or `Free` ($0/mo)
-   - **Health Check Path**: `/healthz`
-4. Enter Environment Variables in Render:
-
-| Key | Value / Recommendation |
-|:---|:---|
-| `DATABASE_URL` | `postgresql+asyncpg://<USER>:<PASS>@<HOST>/<DB>?sslmode=require` |
-| `JWT_SECRET` | `<Generated 32-byte cryptographic secret>` |
-| `DEBUG` | `false` |
-| `DEMO_MODE` | `true` |
-| `DEMO_PROJECT_ID` | `00000000-0000-4000-a000-000000000001` |
-| `CORS_ORIGINS` | `https://traceharbor.vercel.app` (update if your Vercel URL differs) |
-| `RATE_LIMIT_ENABLED` | `true` |
-| `RATE_LIMIT_DEMO_PER_MINUTE` | `60` |
-| `RATE_LIMIT_AUTH_PER_MINUTE` | `300` |
-| `MAX_REQUEST_BODY_BYTES` | `10485760` |
-| `PROXY_HEADERS_ENABLED` | `true` |
-| `TRUSTED_PROXIES` | `127.0.0.1,::1,testclient` |
-| `LOG_LEVEL` | `INFO` |
-
----
-
-## 12. Vercel Deployment Settings
+The backend is deployed as a serverless ASGI application via Vercel's native Python runtime (`@vercel/python`).
 
 1. In [Vercel Dashboard](https://vercel.com), click **Add New...** -> **Project**.
 2. Import the `TraceHarbor` repository.
 3. Configure Project Settings:
+   - **Project Name**: `traceharbor-api`
+   - **Framework Preset**: `Other`
+   - **Root Directory**: `apps/api`
+   - **Build Command**: *(leave empty; Vercel detects requirements.txt)*
+   - **Output Directory**: *(leave default)*
+4. Configure Environment Variables in Vercel for the Backend:
+
+| Key | Value / Recommendation | Note |
+|:---|:---|:---|
+| `DATABASE_URL` | `postgresql+asyncpg://<USER>:<PASS>@<HOST>/<DB>?sslmode=require` | Use Neon pooled connection URL (`-pooler`) |
+| `DB_POOL_SIZE` | `2` | Optimized for serverless functions |
+| `DB_MAX_OVERFLOW` | `3` | Prevents Neon connection exhaustion |
+| `DB_POOL_RECYCLE` | `300` | Recycles idle connections cleanly |
+| `JWT_SECRET` | `<Generated 32-byte cryptographic secret>` | Required for authentication |
+| `DEBUG` | `false` | Enforces production mode |
+| `DEMO_MODE` | `true` | Enables safe public demo mode |
+| `DEMO_PROJECT_ID` | `00000000-0000-4000-a000-000000000001` | Fixed UUID for the demo tenant |
+| `CORS_ORIGINS` | `https://traceharbor-web.vercel.app` | Set to your Vercel frontend URL |
+| `RATE_LIMIT_ENABLED` | `true` | Enables anti-abuse rate limiter |
+| `RATE_LIMIT_DEMO_PER_MINUTE` | `60` | 60 requests/minute for demo users |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | `300` | 300 requests/minute for authenticated users |
+| `MAX_REQUEST_BODY_BYTES` | `4500000` | 4.5 MB serverless function payload limit |
+| `PROXY_HEADERS_ENABLED` | `true` | Honors reverse proxy headers |
+| `TRUSTED_PROXIES` | `127.0.0.1,::1,testclient` | Reverse proxy trust list |
+| `LOG_LEVEL` | `INFO` | Standard structured logging |
+
+5. Deploy. Record the assigned backend URL (e.g. `https://traceharbor-api.vercel.app`).
+
+---
+
+## 12. Vercel Frontend Deployment (Project 1 — $0.00/mo)
+
+The frontend is deployed on Vercel's Edge/Next.js hosting with zero hosting cost.
+
+1. In [Vercel Dashboard](https://vercel.com), click **Add New...** -> **Project**.
+2. Import the `TraceHarbor` repository.
+3. Configure Project Settings:
+   - **Project Name**: `traceharbor-web`
    - **Framework Preset**: `Next.js`
    - **Root Directory**: `apps/web`
    - **Build Command**: `npm run build`
    - **Output Directory**: `.next`
    - **Node.js Version**: `20.x`
-4. Configure Environment Variables in Vercel:
+4. Configure Environment Variables in Vercel for the Frontend:
 
-| Key | Value |
-|:---|:---|
-| `NEXT_PUBLIC_API_BASE_URL` | `https://traceharbor-api.onrender.com` |
-| `NEXT_PUBLIC_API_URL` | `https://traceharbor-api.onrender.com` |
-| `NEXT_PUBLIC_DEMO_KEY` | *(leave empty for automatic unauthenticated demo mode)* |
+| Key | Value | Note |
+|:---|:---|:---|
+| `NEXT_PUBLIC_API_BASE_URL` | `https://traceharbor-api.vercel.app` | Assigned URL of Project 2 (no trailing slash) |
+| `NEXT_PUBLIC_API_URL` | `https://traceharbor-api.vercel.app` | Secondary alias for API base URL |
+| `NEXT_PUBLIC_DEMO_KEY` | *(leave empty)* | Triggers automatic unauthenticated demo access |
 
-5. Deploy. Record the assigned URL (e.g. `https://traceharbor.vercel.app`).
-6. If the assigned Vercel domain differs, update `CORS_ORIGINS` in Render settings.
+5. Deploy. Record the assigned frontend URL (e.g. `https://traceharbor-web.vercel.app`).
+6. If the assigned frontend URL differs from `CORS_ORIGINS`, update `CORS_ORIGINS` in the backend project settings.
 
 ---
 

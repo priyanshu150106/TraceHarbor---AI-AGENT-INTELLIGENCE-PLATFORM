@@ -21,7 +21,6 @@ from app.core.cors import (
     validate_production_cors_at_startup,
     validate_single_origin,
 )
-from app.main import app
 
 
 @pytest.mark.asyncio

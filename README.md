@@ -225,6 +225,6 @@ cd apps/web && npm run build
 - **Contributing & Setup**: Review [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for local setup, code standards, and testing procedures.
 - **Deployment Specifications**:
   - [`docs/DEPLOYMENT_READINESS.md`](docs/DEPLOYMENT_READINESS.md): Preflight audit and security verification matrix.
-  - [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md): Step-by-step cloud deployment runbook for Vercel, Render, and Neon.
+  - [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md): Step-by-step zero-cost cloud deployment runbook for Vercel and Neon ($0.00/mo).
   - [`docs/API_ACCESS_AUDIT.md`](docs/API_ACCESS_AUDIT.md): Complete 24-operation API authorization matrix.
 - **Interview & Technical Guide**: For detailed architectural deep dives and hiring manager Q&A, refer to [`docs/INTERVIEW_GUIDE.md`](docs/INTERVIEW_GUIDE.md).

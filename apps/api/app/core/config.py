@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://th:change_me_in_production@localhost:5432/traceharbor"
     )
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout: float = 30.0
+    db_pool_recycle: int = 300
 
     # ---------- Redis ----------
     redis_url: str = "redis://localhost:6379/0"

@@ -23,7 +23,6 @@ from app.models.api_key import ApiKey
 from app.models.project import Project
 from app.models.user import User
 from app.tests.conftest import (
-    OTHER_PROJECT_API_KEY,
     REVOKED_API_KEY,
     TEST_API_KEY,
 )
